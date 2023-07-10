@@ -8,6 +8,7 @@ The following design was consulted (credit @Berkerly_EECS_61C_Fall_2021):
 
 
 Here are the following characteristics of this processor:
+
 1- Capable of executing all RISC-V instructions in one cycle each
 2- Has 5 phases of execution i.e. Instruction fetch, decode, execute, store in data memory, and write back.
 3- Not all instructions are active in all phases.
