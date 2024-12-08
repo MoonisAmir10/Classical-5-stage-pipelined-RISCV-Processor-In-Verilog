@@ -1,7 +1,7 @@
 # RISCV-Processor-In-Verilog
 This project is an implementation of a 32-bit single core RISCV processor (RV32I) in verilog, as part of my end semester project of the course of EE-222 Microprocessor Systems.
 
-The design was further pipelined in 5 stages, with hazard control and forwarding.
+The design was further pipelined in 5 stages, with **hazard control** and **forwarding**.
 
 **R** (Register), **I** (Immediate), **S** (Store), **B** (Branch), and **jump** type instructions are supported.
 
