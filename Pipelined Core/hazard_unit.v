@@ -44,19 +44,14 @@ end
 assign lwstall = ((Rs1_D == RD_E) | (Rs2_D == RD_E)) & wbsel_E[0] & wbsel_E[1];
 
 assign stallF = !(lwstall | pc_sel);
+//assign stallF = !(lwstall);
 
 assign stallD = !(lwstall | pc_sel);
+//assign stallD = !(lwstall);
 
 assign flushE = lwstall | pc_sel;
 
-
 ///// Brach and jump hazard control /////
 assign flushD = pc_sel;
-
-//assign stallF = 1'b1;
-//assign stallD = 1'b1;
-//assign flushD = 1'b0;
-//assign flushE = 1'b0;
-
 							  
 endmodule

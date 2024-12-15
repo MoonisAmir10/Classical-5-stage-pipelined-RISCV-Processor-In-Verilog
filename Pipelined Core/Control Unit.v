@@ -1,7 +1,9 @@
 module ControlUnit(
 input [6:0] funct7,
 input [2:0] funct3,
+input [2:0] funct3_EX,
 input [6:0] opcode,
+input [6:0] opcode_EX,
 input breq_flag,
 input brlt_flag,
 input bge_flag,
@@ -25,7 +27,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
   asel = 0;
   wbsel = 0;
   dm_write_en = 0;
-  pc_sel = 0;
+  //pc_sel = 0;
   alu_select = 4'b0000;
   brun_en = 0;
   
@@ -37,7 +39,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             asel = 0;
             wbsel = 2'b01;
             dm_write_en = 0; 
-            pc_sel = 0;
+           // pc_sel = 0;
 
             case(funct3)
                 3'b000: begin
@@ -70,7 +72,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             asel = 0;
             wbsel = 2'b01;
             dm_write_en = 0;
-            pc_sel = 0;
+           // pc_sel = 0;
 
             case(funct3)
                 3'b000: alu_select = 4'b0000; // ADDI
@@ -98,7 +100,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             asel = 0;
             wbsel = 0;
             dm_write_en = 0;
-            pc_sel = 0;
+          //  pc_sel = 0;
 
             alu_select = 4'b0000; //Adding base + offset
 
@@ -112,7 +114,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             asel = 0;
             wbsel = 0; //don't care
             dm_write_en = 1;
-            pc_sel = 0;
+          //  pc_sel = 0;
 
             alu_select = 4'b0000; //Adding base + offset
 
@@ -126,11 +128,58 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             asel = 1; //to select pc
             wbsel = 0; //dont care
             dm_write_en = 0; //dmem will be in read mode
-            pc_sel = 0;
+            //pc_sel = 0;
 
             alu_select = 4'b0000; //Adding base + offset
 
-            case(funct3)
+//            case(funct3)
+//                3'b000: begin
+//                         if (breq_flag)
+//                           pc_sel = 1;
+//                        end
+//                3'b100: begin //signed comparison
+//                          brun_en = 0;
+//                         if (brlt_flag)
+//                           pc_sel = 1;
+//                        end
+//                3'b101: begin
+//                         if (bge_flag)
+//                           pc_sel = 1;
+//                        end
+//                3'b110: begin //unsigned comparison
+//                           brun_en = 1;
+//                         if (brlt_flag)
+//                           pc_sel = 1;
+//                        end
+//					 default:   pc_sel = 0;
+//             endcase
+
+         end
+			
+			else if(opcode == 7'b1100111) begin // JALR 
+               
+            reg_write_en = 1; // store pc + 4 in some reg
+            imm_sel = 2'b01; // I type imm
+            bsel = 1; 
+            asel = 0;
+            wbsel = 2'b10; // to store pc + 4
+            dm_write_en = 0; // dmem in read mode
+            //pc_sel = 1; // will jump
+
+            alu_select = 4'b0000; // For rs1 + imm
+
+         end
+
+    end
+
+
+// BRANCH & JUMP CONTROLLER
+always@(*)
+begin
+  pc_sel = 0;  // initial set
+if(opcode_EX == 7'b1100011) begin //Branch
+              
+            case(funct3_EX)
                 3'b000: begin
                          if (breq_flag)
                            pc_sel = 1;
@@ -153,21 +202,9 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
              endcase
 
          end
-			
-			else if(opcode == 7'b1100111) begin // JALR 
-               
-            reg_write_en = 1; // store pc + 4 in some reg
-            imm_sel = 1; // I type imm
-            bsel = 1; 
-            asel = 0;
-            wbsel = 2'b10; // to store pc + 4
-            dm_write_en = 0; // dmem in read mode
-            pc_sel = 1; // will jump
-
-            alu_select = 4'b0000; // For rs1 + imm
-
-         end
-
-    end
+else if(opcode_EX == 7'b1100111) begin // JALR
+     pc_sel = 1; // will jump
+end
+end
 
 endmodule

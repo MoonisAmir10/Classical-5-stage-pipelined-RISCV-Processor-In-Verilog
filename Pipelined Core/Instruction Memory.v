@@ -15,7 +15,7 @@ wire [4:0] instr_addr = pc[6:2]; //there are only (MEM_SIZE / 4) locations
 initial
  begin
   //assigning instructions
-  $readmemb("instrmem.prog", memory,0,5);
+  $readmemh("instrmem.prog", memory,0,5);
  end
 
 always @(*)

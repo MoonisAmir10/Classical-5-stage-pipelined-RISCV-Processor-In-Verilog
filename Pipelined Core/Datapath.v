@@ -1,17 +1,18 @@
-`include "Register File.v"
-`include "ALU.v"
-`include "input2_mux.v"
-`include "imm_generate.v" 
-`include "Data Memory.v"
-`include "regfile_wb_mux.v"
-`include "input1_mux.v"
-`include "Branch Comparator.v"
+//`include "Register File.v"
+//`include "ALU.v"
+//`include "input2_mux.v"
+//`include "imm_generate.v" 
+//`include "Data Memory.v"
+//`include "regfile_wb_mux.v"
+//`include "input1_mux.v"
+//`include "Branch Comparator.v"
 
 module Datapath(
 input [4:0] read_reg_r1,
 input [4:0] read_reg_r2,
 input [11:0] read_imm_12,
 input [4:0] reg_write_dest,
+input [4:0] reg_write_dest_imm,
 input [3:0] alu_select,
 input reg_write_en,
 input clk,
@@ -178,7 +179,7 @@ RegFile regfile_inst(
 //sign extension
 imm_generate imm_gen_inst(
 .imm_12(read_imm_12),
-.reg_write_dest(reg_write_dest),
+.reg_write_dest(reg_write_dest_imm),
 .imm_sel(imm_sel),
 .read_imm_data2(read_imm_data2)
 );
@@ -223,8 +224,8 @@ input1_mux input1_mux_inst(
 
 //Instantiating Branch Comp
 branch_comparator branc_comp_inst(
-.inpA(rs1_EX),
-.inpB(rs2_EX),
+.inpA(inp1_fwd_out),
+.inpB(inp2_fwd_out),
 .brun_en(brun_en),
 .breq_flag(breq_flag),
 .brlt_flag(brlt_flag),

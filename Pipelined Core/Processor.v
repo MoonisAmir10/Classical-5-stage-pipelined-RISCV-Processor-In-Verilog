@@ -1,8 +1,8 @@
-`include "Control Unit.v"
-`include "Datapath.v"
-`include "Program Counter.v"
-`include "Instruction Memory.v"
-`include "pc_mux.v"
+//`include "Control Unit.v"
+//`include "Datapath.v"
+//`include "Program Counter.v"
+//`include "Instruction Memory.v"
+//`include "pc_mux.v"
 
 module Processor( 
 input clk, 
@@ -39,22 +39,17 @@ wire dm_write_en_E, dm_write_en_MEM;
 
 wire [3:0] alu_select_E;
 
-wire busy;
-
 wire bsel_E, asel_E;
 
 wire [1:0] wbsel_E, wbsel_MEM, wbsel_WB;
 
 wire brun_en_E;
 
-wire pc_sel_E;
 wire pc_sel_MEM;
 
 wire [1:0] ForwardAE, ForwardBE;
 
-wire stallF, stallD, stallE, flushD, flushE;
-
-
+wire stallF, stallD, flushD, flushE;
 
 //assign stallF = 1'b1;
 //assign stallD = 1'b1;
@@ -62,8 +57,6 @@ wire stallF, stallD, stallE, flushD, flushE;
 //assign flushE = 1'b0;
 //assign ForwardAE = 2'b00;
 //assign ForwardBE = 2'b00;
-
-
 
 pc_mux pc_mux_inst(
 .alu_out(alu_out),
@@ -250,18 +243,9 @@ reg_pl #(.N(1)) brun_en_DE(
 .out(brun_en_E)
 );
 
-// pc_sel
-reg_pl #(.N(1)) pc_sel_DE(
-.inp(pc_sel),
-.clk(clk),
-.reset(reset),
-.en(1'b1),
-.clear(flushE),
-.out(pc_sel_E)
-);
-
+//// pc_sel
 reg_pl #(.N(1)) pc_sel_E_MEM(
-.inp(pc_sel_E),
+.inp(pc_sel),
 .clk(clk),
 .reset(reset),
 .en(1'b1),
@@ -273,7 +257,9 @@ reg_pl #(.N(1)) pc_sel_E_MEM(
 ControlUnit controlunit_inst(
 .funct7(instr_ID[31:25]),
 .funct3(instr_ID[14:12]),
+.funct3_EX(instr_EX[14:12]),
 .opcode(instr_ID[6:0]),
+.opcode_EX(instr_EX[6:0]),
 .breq_flag(breq_flag),
 .brlt_flag(brlt_flag),
 .bge_flag(bge_flag),
@@ -292,7 +278,7 @@ hazard_unit hu_inst(
 .RegWriteM(reg_write_en_MEM),
 .RegWriteW(reg_write_en_WB),
 .wbsel_E(wbsel_E),
-.pc_sel(pc_sel_E),
+.pc_sel(pc_sel),
 .RD_E(instr_EX[11:7]),
 .RD_M(instr_MEM[11:7]),
 .RD_W(instr_WB[11:7]),
@@ -314,6 +300,7 @@ Datapath datapath_inst(
 .read_reg_r2(instr_ID[24:20]),
 .read_imm_12(instr_ID[31:20]),
 .reg_write_dest(instr_WB[11:7]),
+.reg_write_dest_imm(instr_ID[11:7]),  // additional for branch testing
 .alu_select(alu_select_E),
 .reg_write_en(reg_write_en_WB),
 .clk(clk),
