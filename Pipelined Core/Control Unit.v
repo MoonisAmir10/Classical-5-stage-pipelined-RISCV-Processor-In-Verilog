@@ -25,7 +25,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
   imm_sel = 2'b00;
   bsel = 0;
   asel = 0;
-  wbsel = 0;
+  wbsel = 2'b00;
   dm_write_en = 0;
   //pc_sel = 0;
   alu_select = 4'b0000;
@@ -37,7 +37,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             imm_sel = 0; //dont care
             bsel = 0;
             asel = 0;
-            wbsel = 2'b01;
+            wbsel = 2'b00;  
             dm_write_en = 0; 
            // pc_sel = 0;
 
@@ -70,7 +70,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             imm_sel = 1;
             bsel = 1;
             asel = 0;
-            wbsel = 2'b01;
+            wbsel = 2'b00;
             dm_write_en = 0;
            // pc_sel = 0;
 
@@ -98,7 +98,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             imm_sel = 1;
             bsel = 1;
             asel = 0;
-            wbsel = 0;
+            wbsel = 2'b01;  
             dm_write_en = 0;
           //  pc_sel = 0;
 
@@ -112,7 +112,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
             imm_sel = 0; //S-format imm generation
             bsel = 1; 
             asel = 0;
-            wbsel = 0; //don't care
+            wbsel = 2'b00; // Dont care 
             dm_write_en = 1;
           //  pc_sel = 0;
 
@@ -123,36 +123,14 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
          else if(opcode == 7'b1100011) begin //Branch
                
             reg_write_en = 0; 
-            imm_sel = 2'b10; //for B-format imm generation
+            imm_sel = 2'b10; //for B-format imm generations
             bsel = 1; 
             asel = 1; //to select pc
-            wbsel = 0; //dont care
+            wbsel = 2'b00; // Dont care
             dm_write_en = 0; //dmem will be in read mode
             //pc_sel = 0;
 
             alu_select = 4'b0000; //Adding base + offset
-
-//            case(funct3)
-//                3'b000: begin
-//                         if (breq_flag)
-//                           pc_sel = 1;
-//                        end
-//                3'b100: begin //signed comparison
-//                          brun_en = 0;
-//                         if (brlt_flag)
-//                           pc_sel = 1;
-//                        end
-//                3'b101: begin
-//                         if (bge_flag)
-//                           pc_sel = 1;
-//                        end
-//                3'b110: begin //unsigned comparison
-//                           brun_en = 1;
-//                         if (brlt_flag)
-//                           pc_sel = 1;
-//                        end
-//					 default:   pc_sel = 0;
-//             endcase
 
          end
 			

@@ -41,17 +41,21 @@ end
 
 
 /////// LW hazard control logic /////
-assign lwstall = ((Rs1_D == RD_E) | (Rs2_D == RD_E)) & wbsel_E[0] & wbsel_E[1];
+//assign lwstall = ((Rs1_D == RD_E) | (Rs2_D == RD_E)) & wbsel_E[0] & wbsel_E[1];  // original
+assign lwstall = ((Rs1_D == RD_E) | (Rs2_D == RD_E)) & (wbsel_E[0]);
 
+//assign stallF = lwstall | pc_sel;
 assign stallF = !(lwstall | pc_sel);
 //assign stallF = !(lwstall);
 
+//assign stallD = lwstall | pc_sel;
 assign stallD = !(lwstall | pc_sel);
 //assign stallD = !(lwstall);
 
 assign flushE = lwstall | pc_sel;
 
 ///// Brach and jump hazard control /////
+///// pc_sel is from EX stage       /////
 assign flushD = pc_sel;
 							  
 endmodule
