@@ -518,7 +518,7 @@ begin
 						end
 						else
 						begin
-							if(!rdwr)
+							if(wr_mem)
 							begin
 								wmem_byte <= wmem_4byte[7:0];
 								wmem_4byte<= {8'd0,wmem_4byte[31:8]};
