@@ -4,10 +4,12 @@ module processor_tb;
 
 reg clk;
 reg reset;
+wire [31:0] x14;
 
 Processor processor_inst(
 .clk(clk),
-.reset(reset)
+.reset(reset),
+.x14(x14)
 );
 
 initial begin
@@ -24,8 +26,9 @@ end
 
 initial 
 begin
-  reset = 0;
-  #5 reset = 1;
+  reset = 1;
+  #5 reset = 0;
+  #15 reset = 1;
 end 
 
 

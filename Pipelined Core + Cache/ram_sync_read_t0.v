@@ -30,7 +30,10 @@ Parameterized Single Port RAM
 // ******************************************************************************************************
 
 
-module ram_sync_read_t0(
+module ram_sync_read_t0 #(
+				parameter AWIDTH = 3,		// Address Width Parameter, also used to calculate depth
+				parameter DWIDTH = 14		// Data width parameter
+				)(
 				input 	clock,			//Input signal for clock
 				input 	[AWIDTH-1:0] addr,	//Parameterized Address bus input
 				input 	[DWIDTH-1:0] din,	//Parameterized Data bus input
@@ -38,18 +41,17 @@ module ram_sync_read_t0(
 				output  	[DWIDTH-1:0] dout	//Parameterized Data bus output
 				);
 
-// Configuration Parameters
-
-parameter AWIDTH = 3;		// Address Width Parameter, also used to calculate depth
-parameter DWIDTH = 14;		// Data width parameter
 localparam DEPTH  = 1 << AWIDTH;
 // Memory Array Decaration
 
 reg [DWIDTH-1:0] mem_array [0:DEPTH-1];
+integer i;
 
 // Memory initialization
 initial
 begin
+	for (i = 0; i < DEPTH; i = i + 1)
+		mem_array[i] = {DWIDTH{1'b0}};
 	$readmemb("tagRam0.txt", mem_array);
 end
 

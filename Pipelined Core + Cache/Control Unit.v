@@ -18,7 +18,7 @@ output reg brun_en,
 output reg pc_sel
 );
 
-always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
+always @(*)
     begin
 	 // Initialize all control signals to default values
   reg_write_en = 0;
@@ -29,7 +29,6 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
   dm_write_en = 0;
   //pc_sel = 0;
   alu_select = 4'b0000;
-  brun_en = 0;
   
         if(opcode == 7'b0110011) begin // R-type instructions
 
@@ -155,6 +154,7 @@ always @(funct7 or funct3 or opcode or breq_flag or brlt_flag or bge_flag)
 always@(*)
 begin
   pc_sel = 0;  // initial set
+  brun_en = 0;
 if(opcode_EX == 7'b1100011) begin //Branch
               
             case(funct3_EX)

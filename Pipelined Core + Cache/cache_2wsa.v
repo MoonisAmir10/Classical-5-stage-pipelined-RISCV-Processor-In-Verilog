@@ -161,7 +161,17 @@ ECE 585
 // 			indentation
 // ******************************************************************************************************
 
-module cache_2wsa(
+module cache_2wsa #(
+	parameter AWIDTH		= 16,	//Address Bus width
+	parameter DWIDTH		= 8,	//Data Bus Width
+	parameter CACHELINES    = 16,
+	parameter BLOCKSIZE		= 4,
+	parameter NUMOFSETS		= 8,
+	parameter VALIDBIT		= 1,
+	parameter DIRTYBIT		= 1,
+	parameter USEDBIT		= 1,
+	parameter TAGWIDTH		= 11
+)(
 	input			clock,		//Clock input same as CPU and Memory controller(if MemController work on same freq.)
 	input			reset_n,	//Active Low Asynchronous Reset Signal Input
 
@@ -181,18 +191,6 @@ module cache_2wsa(
 	input			ready_mem	//Active High Ready signal from Main memory, to know the status of memory
 
 );
-
-// Parameters
-
-parameter AWIDTH		= 16;	//Address Bus width
-parameter DWIDTH		= 8;	//Data Bus Width
-parameter CACHELINES    = 16;
-parameter BLOCKSIZE		= 4;
-parameter NUMOFSETS		= 8;
-parameter VALIDBIT		= 1;
-parameter DIRTYBIT		= 1;
-parameter USEDBIT		= 1;
-parameter TAGWIDTH		= 11;
 
 // State Machine Parameters
 
@@ -628,10 +626,10 @@ end
 
 // Instantiation of Tag RAM for Way 0
 
-defparam tr0.AWIDTH = 3;
-defparam tr0.DWIDTH = VALIDBIT+USEDBIT+DIRTYBIT+TAGWIDTH; 
-
-ram_sync_read_t0 tr0 (
+ram_sync_read_t0 #(
+			.AWIDTH(3),
+			.DWIDTH(VALIDBIT+USEDBIT+DIRTYBIT+TAGWIDTH)
+			) tr0 (
 			.clock(clock),
 			.addr(index),
 			.din(wtag0),
@@ -639,12 +637,12 @@ ram_sync_read_t0 tr0 (
 			.dout(rtag0)
 			);
 
-// Instantiation of Tag RAM for Way 0
+// Instantiation of Tag RAM for Way 1
 
-defparam tr1.AWIDTH = 3;
-defparam tr1.DWIDTH = VALIDBIT+USEDBIT+DIRTYBIT+TAGWIDTH;
-
-ram_sync_read_t1 tr1 (
+ram_sync_read_t1 #(
+			.AWIDTH(3),
+			.DWIDTH(VALIDBIT+USEDBIT+DIRTYBIT+TAGWIDTH)
+			) tr1 (
 			.clock(clock),
 			.addr(index),
 			.din(wtag1),
@@ -654,10 +652,10 @@ ram_sync_read_t1 tr1 (
 
 // Instantiation Data RAM for Way 0
 
-defparam dr0.AWIDTH = 3;
-defparam dr0.DWIDTH = DWIDTH*BLOCKSIZE;
-
-ram_sync_read_d0 dr0 (
+ram_sync_read_d0 #(
+			.AWIDTH(3),
+			.DWIDTH(DWIDTH*BLOCKSIZE)
+			) dr0 (
 			.clock(clock),
 			.addr(index),
 			.din(wdata),
@@ -667,10 +665,10 @@ ram_sync_read_d0 dr0 (
 
 // Instantiation Data RAM for Way 1
 
-defparam dr1.AWIDTH = 3;
-defparam dr1.DWIDTH = DWIDTH*BLOCKSIZE;
-
-ram_sync_read_d1 dr1 (
+ram_sync_read_d1 #(
+			.AWIDTH(3),
+			.DWIDTH(DWIDTH*BLOCKSIZE)
+			) dr1 (
 			.clock(clock),
 			.addr(index),
 			.din(wdata),

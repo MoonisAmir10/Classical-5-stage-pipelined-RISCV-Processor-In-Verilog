@@ -16,8 +16,8 @@ integer i;
 //initializing all registers to be 0
 initial 
 begin
-  for(i=0;i<31;i=i+1)
-   reg_array[i] <= 32'd0;
+  for(i=0;i<32;i=i+1)
+   reg_array[i] = 32'd0;
  end
 
 always @(posedge clk) 
