@@ -19,8 +19,8 @@ integer i;
 //initializing all locations to be 8, for testing purposes
 initial 
 begin
-  for(i=0;i<63;i=i+1)
-   memory[i] <= 32'd8;
+  for(i=0;i<64;i=i+1)
+   memory[i] = 32'd8;
 end
 
 
