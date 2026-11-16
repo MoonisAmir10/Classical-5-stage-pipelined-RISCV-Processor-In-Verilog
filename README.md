@@ -3,12 +3,13 @@
 [![Language](https://img.shields.io/badge/Language-Verilog%20HDL-blue.svg)](https://en.wikipedia.org/wiki/Verilog)
 [![Architecture](https://img.shields.io/badge/ISA-RISC--V%20(RV32I)-red.svg)](https://riscv.org/)
 [![FPGA Target](https://img.shields.io/badge/FPGA-Digilent%20Artix--7%20100T-orange.svg)](https://digilent.com/reference/programmable-logic/nexys-a7/start)
-[![Clock Frequency](https://img.shields.io/badge/Max%20Freq-168%20MHz-brightgreen.svg)]()
+[![Clock Frequency](https://img.shields.io/badge/Max%20Freq-168%20MHz%20(FPGA)%20%7C%20169.5%20MHz%20(ASIC)-brightgreen.svg)]()
+[![ASIC PDK](https://img.shields.io/badge/ASIC%20PDK-IHP%20SG13G2%20130nm-teal.svg)]()
 [![Cache](https://img.shields.io/badge/Cache-2--Way%20Set--Associative-purple.svg)]()
 
-A synthesizable, high-performance 32-bit single-core **RISC-V (RV32I)** processor implemented in Verilog HDL. The design features a classic **5-stage pipeline** with full **hazard detection**, **operand forwarding**, and an integrated **2-Way Set-Associative Data Cache**.
+A synthesizable, high-performance 32-bit single-core **RISC-V (RV32I)** processor implemented in Verilog HDL. The design features a classic **5-stage pipeline** with full **hazard detection**, **operand forwarding**, and an integrated **2-Way Set-Associative Data Cache** — now extended in [`DFT-ASIC-Verification/`](DFT-ASIC-Verification/README.md) with an end-to-end **open-source DFT, DV, ATPG, Multi-Corner OpenSTA Signoff, and SDF Silicon Debug flow**.
 
-Prototyped and verified on hardware targeting the **AMD/Xilinx Artix-7 100T FPGA**, achieving timing closure at **168 MHz**.
+Prototyped and verified on **AMD/Xilinx Artix-7 100T FPGA** (`168.07 MHz`) and signed off as a scan-stitched **IHP SG13G2 130nm ASIC** (`169.49 MHz` typ / `110.50 MHz` slow, `298,186.09 um²` stdcell core = `41,086 GE`, `19.28 mW` @ `100 MHz`).
 
 Developed by **[Moonis Amir Zaman](https://github.com/MoonisAmir10)** (M.Sc. Microelectronics & Chip Design, Technical University of Munich | Working Student at Infineon Technologies).
 
@@ -128,9 +129,11 @@ To alleviate the von Neumann memory bottleneck, a **2-Way Set-Associative Data C
 
 ---
 
-## 📊 FPGA Implementation & Resource Utilization
+## 📊 FPGA vs. ASIC Implementation & Resource Metrics
 
-Targeted and synthesized for the **AMD/Xilinx Artix-7 100T FPGA (XC7A100T-1CSG324C)** using **Vivado Design Suite**:
+### 1. AMD/Xilinx Artix-7 100T FPGA (Vivado Design Suite Baseline)
+
+Targeted and synthesized for the **AMD/Xilinx Artix-7 100T FPGA (`XC7A100T-1CSG324C`)**:
 
 | Metric | Target Specification | Achieved Metric | Status |
 |:---|:---:|:---:|:---:|
@@ -140,6 +143,42 @@ Targeted and synthesized for the **AMD/Xilinx Artix-7 100T FPGA (XC7A100T-1CSG32
 | **Flip-Flops (FFs)** | < 1,500 | **625 FFs** (< 1% of device) | ✅ Highly efficient |
 | **Block RAM (BRAM)** | - | **0 BRAM** (Distributed RAM) | ✅ Minimal footprint |
 | **Benchmark Validation** | Fibonacci Sequence Loop | Complete verification | ✅ Hardware Verified |
+
+*(Open-source `Yosys synth_xilinx -family xc7` post-DFT mapping of the scan-ready SoC + wrappers: `3,902` LUTs, `2,798` FFs, `12 RAM32M`, `0 BRAM`.)*
+
+### 2. IHP SG13G2 130nm ASIC Signoff (Post-Scan-Stitch & Post-CTS/ECO)
+
+Synthesized (`Yosys`), scan-stitched (`8` chains, `2,151` core FFs), CTS-buffered (`+1,666` buffers / `831` `_1 -> _2` gate upsizes), and signed off across all `3` modes × `3` PVT corners (`OpenSTA 3.2.0` + 4-state `iverilog -gspecify` SDF GLS) in [`DFT-ASIC-Verification/`](DFT-ASIC-Verification/README.md):
+
+| ASIC Signoff Metric | `typ` (`1.20V, 25°C`) | `slow` (`1.08V, 125°C`) | `fast` (`1.32V, -40°C`) | Scope & Notes |
+|:---|:---:|:---:|:---:|:---|
+| **Max Functional / LOC $F_{\max}$** | **169.49 MHz** | **110.50 MHz** | **249.38 MHz** | `10.0 ns` period (`100 MHz` signoff) |
+| **Worst Setup Slack (`func` / `LOC`)** | `+4.10 ns` / `+4.10 ns` | `+0.95 ns` / `+0.95 ns` | `+5.99 ns` / `+4.39 ns` | `TNS = 0.00 ns` across all 9 corners |
+| **Worst Hold Slack (`func` / `shift`)** | `+0.10 ns` / `+0.09 ns` | `+0.24 ns` / `+0.23 ns` | `+0.04 ns` / `+0.01 ns` | Propagated clocks; `TNS = 0.00 ns` |
+| **Stdcell Core Area (`soc_dft_top_sta`)** | **`298,186.09 µm²`** | — | — | `0.2982 mm²` = **`41,086 GE`**, `15,886` stdcells, `2,550` DFFs + `1` latch |
+| **Est. Die Area incl. 4x SRAM Stubs** | **`326,986.09 µm²`** | — | — | `+28,800 µm²` (`2x 8x14b` Tag + `2x 8x32b` Data modeled stubs) |
+| **Functional Power (`100 MHz`, `0.1` act)** | **19.28 mW** | **15.41 mW** | **23.98 mW** | `Seq 12.81 mW`, `Clk 4.71 mW`, `Comb 1.76 mW` @ `typ` |
+| **Scan-Shift Power (`10 MHz` `tck`)** | **2.61 mW** | **2.10 mW** | **3.25 mW** | Scaled to `10 MHz` shift clock (`0.1 / 100 ns`) |
+| **Static Leakage Power (`stdcells`)** | **4.08 µW** | **18.29 µW** | **8.86 µW** | Behavioral SRAM Liberty stubs exclude array power (`Macro = 0`) |
+
+> **DFT, ATPG & Verification Highlights** ([Full Report](DFT-ASIC-Verification/README.md)):
+> - **DFT IP Suite**: IEEE 1149.1 JTAG TAP (`IDCODE = 0x1BAD_D071`) + 4 TDRs, IEEE 1500 Core Test Wrapper (`WBR=97`), March-C + Checkerboard MBIST across all 4 SRAM banks, glitch-free OCC (`sg13g2_dllrq_1` ICG + 2-pulse LOC + reset mask), and `2:8` LFSR / `8:2` XOR / `16`-bit X-masked MISR compression.
+> - **ATPG (`Atalanta` + `Fault`)**: `41,842` collapsed faults (`0` aborted), **`99.983%`** All-PO / **`97.163%`** Scan-Out coverage; `8`-chain `2:8/8:2` compression cuts shift time by **`7.97x`** & ATE pins **`4x`** (`16 -> 4` pins) with **`0.000%`** XOR aliasing loss; Hybrid `512` PRPG + `714` top-off cuts ATE volume **`8.77x`**.
+> - **Coverage & Silicon Debug**: Verilator SVA/DV closure (`97.6%` line, `95.5%` toggle, `29/29` bins), `3/3` cocotb testsuites, 3-corner SDF GLS, plus reproduced/resolved `DBG-01` (async reset mask), `DBG-02` (`-0.42 ns -> +49.38 ns` lockup-latch hold fix), and `DBG-03` (`chain_x_mask` + automated ATE fail backtracing).
+
+### 3. Extracted ASIC Schematics & ATPG Trade-Off Curves
+
+**Post-Scan-Stitch Top-Level ASIC SoC Schematic (`IHP SG13G2`)** ([SVG](DFT-ASIC-Verification/docs/figures/asic_soc_dft_schematic.svg)):
+
+![Post-Stitch ASIC SoC Schematic](DFT-ASIC-Verification/docs/figures/asic_soc_dft_schematic.png)
+
+**Glitch-Free On-Chip Clock Controller (`occ_clk_ctrl`) Gate-Level Schematic (`IHP SG13G2`)** ([SVG](DFT-ASIC-Verification/docs/figures/asic_occ_gate_schematic.svg)):
+
+![OCC Gate-Level Schematic](DFT-ASIC-Verification/docs/figures/asic_occ_gate_schematic.png)
+
+**Scan Architecture & LFSR Compression ATPG Trade-Offs**:
+
+![Phase 4 ATPG Trade-Off Charts](DFT-ASIC-Verification/docs/figures/atpg_tradeoff_charts.png)
 
 ---
 
@@ -167,6 +206,15 @@ Classical-5-stage-pipelined-RISCV-Processor-In-Verilog/
 │   ├── ram_sync_read_d0/d1.v    # Cache Data RAM ways
 │   ├── ram_sync_read_t0/t1.v    # Cache Tag RAM ways
 │   └── Processor.v              # Integrated CPU + Cache top module
+├── DFT-ASIC-Verification/       # Open-source ASIC synthesis, DFT, DV, ATPG, OpenSTA & SDF GLS flow
+│   ├── rtl/                     # Synthesis-ready RV32I+cache, SRAM macros, JTAG/1500/MBIST/OCC/Comp IP
+│   ├── tb/                      # Unit, SVA, constrained-random DV, cocotb & 3-corner SDF gate-level TBs
+│   ├── flow/                    # Yosys IHP SG13G2 scripts, Fault configs, multi-mode SDCs & SRAM .lib
+│   ├── scripts/                 # Scan stitcher, ATPG sweep, CTS buffering, OpenSTA, ATE diag & metrics
+│   ├── docs/                    # DFT spec, verification plan, ATPG/debug reports & extracted schematics
+│   ├── reports/                 # CSV/MD reports (area, power, 9-corner STA, ATPG, ATE fail diagnosis)
+│   ├── Makefile                 # Automated `make clean all` regression DAG
+│   └── README.md                # Detailed DFT & ASIC documentation
 └── README.md                    # Technical documentation and architecture specification
 ```
 
@@ -174,7 +222,7 @@ Classical-5-stage-pipelined-RISCV-Processor-In-Verilog/
 
 ## 🛠️ Verification & Simulation
 
-### Simulating with ModelSim / QuestaSim / Icarus Verilog
+### Simulating Baseline RTL (ModelSim / QuestaSim / Icarus Verilog)
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/MoonisAmir10/Classical-5-stage-pipelined-RISCV-Processor-In-Verilog.git
@@ -193,6 +241,13 @@ Classical-5-stage-pipelined-RISCV-Processor-In-Verilog/
    vlog cache_2wsa.v cache_2wsa_tb.v ram_sync_read_*.v main_memory.v
    vsim -c -do "run -all; quit"
    ```
+
+### Running the Full Open-Source DFT, ATPG, STA & SDF GLS Flow
+```bash
+cd DFT-ASIC-Verification
+source env_eda.sh
+make clean all        # Runs lint, unit, DV/cocotb, IHP synth, stitch, ATPG, 9-corner STA, SDF GLS, DBG & metrics
+```
 
 ---
 

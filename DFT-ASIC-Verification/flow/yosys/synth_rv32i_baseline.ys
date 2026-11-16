@@ -1,0 +1,21 @@
+read_verilog -DSYNTHESIS rtl/core/rv32i_alu.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_branch_comp.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_control_unit.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_hazard_unit.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_imm_gen.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_muxes.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_pc.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_reg_pl.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_regfile.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_instr_mem.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_data_mem.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_datapath.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_processor.v
+hierarchy -check -top rv32i_processor
+proc; opt; fsm; opt; memory; opt
+techmap; opt
+dfflibmap -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+abc -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+opt_clean -purge
+write_verilog -noattr -noexpr build/rv32i_processor_ihp.v
+stat -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib

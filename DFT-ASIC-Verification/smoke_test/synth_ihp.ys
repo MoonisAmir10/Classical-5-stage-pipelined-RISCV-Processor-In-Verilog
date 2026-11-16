@@ -1,0 +1,9 @@
+read_verilog /home/moonis/auto_job_seeker/projects/riscv-soc-dft/smoke_test/counter4.v
+hierarchy -check -top counter4
+proc; opt; fsm; opt; memory; opt
+techmap; opt
+dfflibmap -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+abc -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+opt_clean -purge
+write_verilog -noattr -noexpr /home/moonis/auto_job_seeker/projects/riscv-soc-dft/smoke_test/build/counter4_ihp_synth.v
+stat -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib

@@ -1,0 +1,24 @@
+dffMatches:
+  - name: sg13g2_dfrbpq_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sg13g2_dfrbpq_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sg13g2_dfrbp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sg13g2_dfrbp_2
+    clk: CLK
+    d: D
+    q: Q
+muxInfo:
+  name: sg13g2_mux2_1
+  a: A1
+  b: A0
+  y: X
+  s: S
+  invertedOutput: false

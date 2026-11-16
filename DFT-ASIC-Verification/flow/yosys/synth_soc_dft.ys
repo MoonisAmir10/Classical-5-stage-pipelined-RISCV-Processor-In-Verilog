@@ -1,0 +1,30 @@
+read_verilog -DSYNTHESIS rtl/core/rv32i_alu.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_branch_comp.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_control_unit.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_hazard_unit.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_imm_gen.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_muxes.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_pc.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_reg_pl.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_regfile.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_instr_mem.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_data_mem.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_datapath.v
+read_verilog -DSYNTHESIS rtl/core/rv32i_processor.v
+read_verilog -DSYNTHESIS -DSYNTHESIS_SRAM_BLACKBOX rtl/mem/sram_sync_sp.v
+read_verilog -DSYNTHESIS -DSYNTHESIS_SRAM_BLACKBOX rtl/core/cache_ctrl_logic.v
+read_verilog -DSYNTHESIS -DSYNTHESIS_SRAM_BLACKBOX rtl/core/cache_2wsa_dft.v
+read_verilog -sv -DSYNTHESIS rtl/dft/jtag_tap.sv
+read_verilog -sv -DSYNTHESIS rtl/dft/ieee1500_wrapper.sv
+read_verilog -sv -DSYNTHESIS rtl/dft/mbist_ctrl.sv
+read_verilog -sv -DSYNTHESIS rtl/dft/occ_clk_ctrl.sv
+read_verilog -sv -DSYNTHESIS rtl/dft/scan_comp_wrap.sv
+read_verilog -sv -DSYNTHESIS rtl/top/soc_dft_top.sv
+hierarchy -check -top soc_dft_top
+proc; opt; fsm; opt; memory; opt
+techmap; opt
+dfflibmap -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+abc -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+opt_clean -purge
+write_verilog -noattr -noexpr build/soc_dft_top_ihp.v
+stat -liberty /home/moonis/auto_job_seeker/.eda_tools/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib

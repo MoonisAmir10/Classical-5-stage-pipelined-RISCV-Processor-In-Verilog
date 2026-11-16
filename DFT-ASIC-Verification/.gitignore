@@ -1,0 +1,29 @@
+# Build & simulation intermediates
+build/
+sim_build/
+__pycache__/
+*.pyc
+*.pyo
+*.vvp
+*.vcd
+*.fst
+*.lxt
+*.lxt2
+*.ghw
+results.xml
+*.log
+!reports/ate_sim_fail.log
+
+# Pyverilog / PLY generated parser tables
+parser.out
+parsetab.py
+
+# Smoke test outputs
+smoke_test/build/
+smoke_test/__pycache__/
+smoke_test/results.xml
+smoke_test/*.vvp
+smoke_test/*.vcd
+
+# Large intermediate SDF / VCD debug artifacts if ever placed outside build/
+*.raw.sdf

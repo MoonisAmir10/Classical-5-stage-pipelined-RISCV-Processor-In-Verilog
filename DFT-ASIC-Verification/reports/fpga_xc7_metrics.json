@@ -1,0 +1,54 @@
+{
+  "soc_func_logic": {
+    "top": "soc_func_logic",
+    "luts_incl_inv": 3087,
+    "ffs": 2320,
+    "latches": 0,
+    "dist_ram32m": 0,
+    "brams": 0,
+    "raw_counts": {
+      "BUFG": 1,
+      "IBUF": 261,
+      "INV": 39,
+      "LUT2": 172,
+      "LUT3": 324,
+      "LUT4": 818,
+      "LUT5": 1056,
+      "LUT6": 678,
+      "OBUF": 286,
+      "FDCE": 2319,
+      "FDPE": 1,
+      "MUXF7": 1,
+      "CARRY4": 49
+    }
+  },
+  "soc_dft_top": {
+    "top": "soc_dft_top",
+    "luts_incl_inv": 3902,
+    "ffs": 2798,
+    "latches": 1,
+    "dist_ram32m": 12,
+    "brams": 0,
+    "raw_counts": {
+      "BUFG": 3,
+      "IBUF": 46,
+      "INV": 46,
+      "LDCE": 1,
+      "LUT2": 265,
+      "LUT3": 486,
+      "LUT4": 971,
+      "LUT5": 1115,
+      "LUT6": 1019,
+      "OBUF": 139,
+      "FDCE": 2637,
+      "FDPE": 8,
+      "MUXF7": 9,
+      "FDRE": 12,
+      "RAM32M": 12,
+      "FDCE_1": 135,
+      "FDPE_1": 6,
+      "CARRY4": 51,
+      "MUXF8": 3
+    }
+  }
+}

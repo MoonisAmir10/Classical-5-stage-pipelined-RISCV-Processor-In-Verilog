@@ -1,0 +1,72 @@
+dffMatches:
+  - name: sky130_fd_sc_hd__dfxtp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfxtp_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfxtp_4
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfrtp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfrtp_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfrtp_4
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfstp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfstp_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfstp_4
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfxbp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfxbp_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfrbp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfrbp_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfsbp_1
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfsbp_2
+    clk: CLK
+    d: D
+    q: Q
+  - name: sky130_fd_sc_hd__dfbbp_1
+    clk: CLK
+    d: D
+    q: Q
+muxInfo:
+  name: sky130_fd_sc_hd__mux2_1
+  a: A1
+  b: A0
+  y: X
+  s: S
+  invertedOutput: false

@@ -1,0 +1,360 @@
+library(sram_sync_sp_lib) {
+  delay_model : table_lookup;
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  current_unit : "1uA";
+  pulling_resistance_unit : "1kohm";
+  leakage_power_unit : "1nW";
+  capacitive_load_unit (1, pf);
+
+  slew_upper_threshold_pct_rise : 80;
+  slew_lower_threshold_pct_rise : 20;
+  slew_upper_threshold_pct_fall : 80;
+  slew_lower_threshold_pct_fall : 20;
+  input_threshold_pct_rise : 50;
+  input_threshold_pct_fall : 50;
+  output_threshold_pct_rise : 50;
+  output_threshold_pct_fall : 50;
+
+  nom_process : 1.0;
+  nom_temperature : 25.0;
+  nom_voltage : 1.20;
+
+  lu_table_template(sram_out_tmpl) {
+    variable_1 : total_output_net_capacitance;
+    index_1 ("0.005, 0.050");
+  }
+  lu_table_template(sram_chk_tmpl) {
+    variable_1 : constrained_pin_transition;
+    variable_2 : related_pin_transition;
+    index_1 ("0.05, 0.50");
+    index_2 ("0.05, 0.50");
+  }
+
+  type(bus3) {
+    base_type : array;
+    data_type : bit;
+    bit_width : 3;
+    bit_from : 2;
+    bit_to : 0;
+    downto : true;
+  }
+  type(bus14) {
+    base_type : array;
+    data_type : bit;
+    bit_width : 14;
+    bit_from : 13;
+    bit_to : 0;
+    downto : true;
+  }
+  type(bus32) {
+    base_type : array;
+    data_type : bit;
+    bit_width : 32;
+    bit_from : 31;
+    bit_to : 0;
+    downto : true;
+  }
+
+  cell(sram_sync_sp_tag) {
+    area : 4800.0;
+    pin(clock) {
+      direction : input;
+      clock : true;
+      capacitance : 0.020;
+    }
+    pin(we) {
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    pin(bist_en) {
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    pin(bist_we) {
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(addr) {
+      bus_type : bus3;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(bist_addr) {
+      bus_type : bus3;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(din) {
+      bus_type : bus14;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(bist_din) {
+      bus_type : bus14;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(dout) {
+      bus_type : bus14;
+      direction : output;
+      max_capacitance : 0.25;
+      timing() {
+        related_pin : "clock";
+        timing_type : rising_edge;
+        cell_rise(sram_out_tmpl) { values ("1.40, 1.65"); }
+        cell_fall(sram_out_tmpl) { values ("1.40, 1.65"); }
+        rise_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+        fall_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+      }
+    }
+    bus(bist_dout) {
+      bus_type : bus14;
+      direction : output;
+      max_capacitance : 0.25;
+      timing() {
+        related_pin : "clock";
+        timing_type : rising_edge;
+        cell_rise(sram_out_tmpl) { values ("1.40, 1.65"); }
+        cell_fall(sram_out_tmpl) { values ("1.40, 1.65"); }
+        rise_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+        fall_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+      }
+    }
+  }
+
+  cell(sram_sync_sp_data) {
+    area : 9600.0;
+    pin(clock) {
+      direction : input;
+      clock : true;
+      capacitance : 0.025;
+    }
+    pin(we) {
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    pin(bist_en) {
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    pin(bist_we) {
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(addr) {
+      bus_type : bus3;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(bist_addr) {
+      bus_type : bus3;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(din) {
+      bus_type : bus32;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(bist_din) {
+      bus_type : bus32;
+      direction : input;
+      capacitance : 0.005;
+      timing() {
+        related_pin : "clock";
+        timing_type : setup_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.35, 0.35", "0.35, 0.35"); }
+      }
+      timing() {
+        related_pin : "clock";
+        timing_type : hold_rising;
+        rise_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+        fall_constraint(sram_chk_tmpl) { values ("0.05, 0.05", "0.05, 0.05"); }
+      }
+    }
+    bus(dout) {
+      bus_type : bus32;
+      direction : output;
+      max_capacitance : 0.25;
+      timing() {
+        related_pin : "clock";
+        timing_type : rising_edge;
+        cell_rise(sram_out_tmpl) { values ("1.55, 1.80"); }
+        cell_fall(sram_out_tmpl) { values ("1.55, 1.80"); }
+        rise_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+        fall_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+      }
+    }
+    bus(bist_dout) {
+      bus_type : bus32;
+      direction : output;
+      max_capacitance : 0.25;
+      timing() {
+        related_pin : "clock";
+        timing_type : rising_edge;
+        cell_rise(sram_out_tmpl) { values ("1.55, 1.80"); }
+        cell_fall(sram_out_tmpl) { values ("1.55, 1.80"); }
+        rise_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+        fall_transition(sram_out_tmpl) { values ("0.10, 0.25"); }
+      }
+    }
+  }
+}

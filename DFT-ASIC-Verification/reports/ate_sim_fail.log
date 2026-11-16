@@ -1,0 +1,4 @@
+ATE_FAIL mode=BYPASS pat=0 cyc=0 ext_pin=0 exp=1 got=0 note=DBG01_RESET_LEAK
+ATE_FAIL mode=BYPASS pat=1 cyc=1301 ext_pin=0 exp=1 got=0 note=SA0_CH3_BIT42
+ATE_FAIL mode=COMP82 pat=2 cyc=226 ext_pin=1 exp=0 got=x note=DBG03_X_INJECT
+MASK_PROBE pat=2 mask=0x08 clean=1
