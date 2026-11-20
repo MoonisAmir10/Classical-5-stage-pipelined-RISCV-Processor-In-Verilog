@@ -1,352 +1,506 @@
-`timescale 1ns / 100ps
+`timescale 1ns / 1ps
 
-/*
-============================
-2-way Set Associative Cache
-ECE 585
-============================
-*/
-// File Name:		cache_2wsa_tb.v
-// Version:		0.5v 
-//
-// Author:		Prasad Pandit & Radhika Mandlekar
-// Contact:		prasad@pdx.edu, radhika@pdx.edu
-//
-// Date created:	11/10/2015
-// Date modified:	11/12/2015
-//
-// Text-editor used:	Gvim 7v4
-// Simulator used:	Xilinx ISE 14v7
-//
-// Related filelist:	cache_2wsa.v (DUT 2-way set associative cache)
-// 			
-//
-// Description:		This Testbench verifies basic functionality of
-// 			a 2-way set associative cache module. 
-// 			The cache can be used between a CPU and Main Memory or
-// 			Secondary Cache. 
-// 			The cache uses following policies:
-// 			1. Module is configured to be used in Look-through
-// 			Architecture
-// 			2. Cache is designed with 'write-back' policy during CPU writes, so data
-// 			if ditry then will be written to main memory during
-// 			eviction else data in cache will be updated with setting
-// 			dirty bit high.
-// 			3. Cache uses write-allocate policy, For the Write miss, the block
-// 			is loaded into cache hoping for subsequent writes to the same location, 
-// 			which is now cached.
-// 			4. The module implements LRU (Least Recently Used)
-// 			policy for eviction of valid or dirty blocks. For
-// 			2-way cache only one used bit is used and is updated
-// 			in both TAG RAMs. (Though 2-bits are used, only one
-// 			bit helps to decide least recently used block).
-// 			(This feature needs to be optimized, and will help in
-// 			reducing RAM size as well as speed of logic)
-//
-// 			The module inferres 4 Block RAM, two for cache data and
-// 			two are TAG RAMs for 2-way cache.
-//
-// 			The TAG RAM stores tag data as well as Valid, Used and
-// 			Dirty Bits.
-//
-// 			The Most significant bit is Valid bit in tag data
-// 			block, next is used bit and third is dirty bit, and
-// 			all other are TAG data bits.
-// 			----------------------------------------------------------------------
-// 			|Valid bit | Used bit | Dirty bit |          Tag Data
-// 			----------------------------------------------------------------------
-//
-// 			All signal descriptions are given in code comments. Please check respective
-// 			lines for understanding logic defined.
-//
-// 			States of Finite State Machine implemented for Cache
-// 			Controller and its basic explanation:
-//
-// 			1. IDLE: This is a reset/default state of FSM. It waits for
-// 			read or write command from CPU and when receives any,
-// 			it latches the address and data (data only when write
-// 			command is issued)
-//
-// 			2. READ: This is a decision state for read hit or miss
-// 			in cache. If hit signal goes high then it selects the
-// 			respective way to push data on CPU data bus and then
-// 			jumps to IDLE state. It takes one clock cycle to complete
-// 			the operation. LRU bits	are also updated in this state.
-// 			During miss, depending on valid and dirty bit, it checks
-// 			whether data needs to be updated in memory and jumps to 
-// 			UPDATEMM state else goes to READMM state to read from Main Memory.
-// 			CPU is stalled in this state when miss is detected.
-// 			
-// 			3. WRITE: This is decision state for write hit or miss
-// 			in cache. If hit, it writes data byte at the
-// 			respective hit location in cache and then updates the 
-// 			valid and dirty bits, later it jumps to IDLE state. It
-// 			consumes only one clock cycle for compleating the
-// 			operation. For WRITE miss, depending on valid and
-// 			dirty bits, if data is dirty and needs to be evicted,
-// 			then it writes that data to main memory it goes to
-// 			UPDATEMM state else to read the invalid line it jumps
-// 			to READMM state.
-// 			CPU is stalled in this state when miss is detected.
-//
-// 			4. READMM: This state drive the memory address bus
-// 			using latched address from CPU. It checks if memory is
-// 			ready to take requests. If yes, it enters a wait state
-// 			WAITFORMM. The rd_mem signal is kept HIGH till the
-// 			data is read from Main Memory.
-//
-// 			5. WAITFORMM: This state keeps check on ready_mem
-// 			signal, and when it gets high, depending on the
-// 			operation request from CPU i.e. read or write, it
-// 			jumps to UPDATECACHE or READMM state.
-//
-// 			6. UPDATEMM: This state checks for LRU location and
-// 			depending on USED bit value it decides to replace that
-// 			specific location by assiging the address bus of main
-// 			memory with that locations tag data and index, byte
-// 			offset is kept 0 to update whole line i.e. 4 bytes in
-// 			main memory. Then to write the data it moves to
-// 			WAITFORMM and pushes the data on memory bus in next
-// 			4 consucative clock cycles.
-//
-// 			7. UPDATECACHE: After waiting for memory to be ready
-// 			with data, when FSM enters in this state it stores the
-// 			read data on memory bus in a register and when done it
-// 			updates the tag of location according to LRU policy as
-// 			well as data at that specific index. To complete the
-// 			operation it again goes to IDLE where CPU stall signal
-// 			is made Low and then in next clock cycle CPU can fetch
-// 			or update the data in Cache memory.
-//
-// Assumptions:		1. CPU is assumed to wait and keep address and data
-// 			same while stalled.
-// 			2. Main Memory module is not created and emulated
-// 			without storing any data. But it is assumed that the
-// 			memory gives out data in sequence when read is
-// 			requested and reads data in sequence of 4 byte with
-// 			1 byte each time during write request.
-//
-//
-// NOTE:		Check Memory Editor of Simulator to cross check your
-// 			data values as all RAMs in cache are loaded with
-// 			respective data files.
-// 			Many lines are kept uncommented to keep the code
-// 			clean.
-// 			Please contact the authors, if you need any specific
-// 			information on your 'why like this?', 'what is this?'
-// 			and ''How is this?' questions, you will get the
-// 			response in a day or two. Do send the snapshot of
-// 			section of code while contacting authors.
-// 			
-// 			Printing this file to PDF may create parsing
-// 			error, do verify PDF with this file for correctness of code and
-// 			indentation
-// ******************************************************************************************************
-
+// Self-checking Directed + 2,500-op Randomized Golden-Scoreboard Testbench for cache_2wsa
 module cache_2wsa_tb;
 
-	// Inputs
-	reg clock;
-	reg reset_n;
-	reg [15:0] addr_cpu;
-	reg rd_cpu;
-	reg wr_cpu;
-	reg ready_mem;
+    reg         clock;
+    reg         reset_n;
 
-	// Outputs
-	wire [15:0] addr_mem;
-	wire rd_mem;
-	wire wr_mem;
-	wire stall_cpu;
+    reg  [15:0] addr_cpu;
+    reg  [31:0] cpu_wdata;
+    reg  [3:0]  cpu_wstrb;
+    reg         rd_cpu;
+    reg         wr_cpu;
+    wire [31:0] cpu_rdata;
+    wire        stall_cpu;
 
-	// Bidirs
-	wire [7:0] data_cpu;
-	wire [7:0] data_mem;
-	
-	reg [7:0] dcpu;
-	reg [7:0] wcpu;
-	reg [7:0] dmem;
-	reg [7:0] wmem;
-	
-	// Instantiate the Unit Under Test (UUT)
-	cache_2wsa uut (
-		.clock(clock), 
-		.reset_n(reset_n), 
-		.data_cpu(data_cpu), 
-		.data_mem(data_mem), 
-		.addr_cpu(addr_cpu), 
-		.addr_mem(addr_mem), 
-		.rd_cpu(rd_cpu), 
-		.wr_cpu(wr_cpu), 
-		.rd_mem(rd_mem), 
-		.wr_mem(wr_mem), 
-		.stall_cpu(stall_cpu), 
-		.ready_mem(ready_mem)
-	);
+    wire [15:0] addr_mem;
+    wire [31:0] mem_wdata;
+    reg  [31:0] mem_rdata;
+    wire        rd_mem;
+    wire        wr_mem;
+    reg         ready_mem;
 
-	assign data_cpu = wr_cpu? wcpu : 8'dZ;
-	assign data_mem = !wr_mem? dmem : 8'dZ;
+    wire        cache_hit;
+    wire        cache_miss;
+    wire        cache_wb;
 
-	//Clock generator block
-	initial begin
-	clock = 1'd0;
-	forever
-	#10 clock = ~clock;
-	end
-	
-	task delay;
-	begin
-	@(negedge clock);
-	end
-	endtask		
-		
-	
-	initial begin
-		// Initialize Inputs
-		reset_n = 0;
-		addr_cpu = 0;
-		rd_cpu = 0;
-		wr_cpu = 0;
-		ready_mem = 1;
-		wcpu = 0;
-		
-		repeat(4)
-		delay;
-		
-		reset_n = 1;
-		
-		delay;
-		delay;
-		// Simple Read from location
-		rd_cpu = 1'd1;
-		addr_cpu = 16'b0000_0000_1001_0011;
-		dcpu = data_cpu;
-		delay;
-		rd_cpu = 1'd1;
-		dcpu = data_cpu;
-		delay;
-		rd_cpu = 1'd0;
-		delay;
-		delay;
-		// Simple Write to same location
-		wr_cpu = 1'd1;
-		wcpu = 8'h23;
-		addr_cpu = 16'b0000_0000_1001_0011;
-		delay;
-		delay;
-		wr_cpu = 1'd0;
-		delay;
-		delay;
-		// Simple Read from same location to check updated data
-		rd_cpu = 1'd1;
-		addr_cpu = 16'b0000_0000_1001_0011;
-		dcpu = data_cpu;
-		delay;
-		rd_cpu = 1'd1;
-		dcpu = data_cpu;
-		delay;
-		rd_cpu = 1'd0;
-		delay;
-		
-		// Simple Read Miss with dirty bit 0 policy check, reads data from Main Memory
-		
-		delay;
-		rd_cpu = 1'd1;
-		addr_cpu = 16'b1100_0000_1000_1011;
-		dcpu = data_cpu;
-		delay;
-		rd_cpu = 1'd1;
-		dcpu = data_cpu;
-		@(posedge rd_mem);
-		ready_mem = 0;
-		repeat(4)
-		delay;
-		
-		ready_mem = 1;
-		
-		delay;
-		
-		dmem = 8'h11;
-		
-		delay;
-		
-		dmem = 8'h22;
-		
-		delay;
-		
-		dmem = 8'h33;
-		
-		delay;
-		
-		dmem = 8'h44;
-		
-		delay;
-		
-		delay;
-		
-		delay;
-		
-		delay;
-		
-		rd_cpu = 1'd0;
-		
-		// Simple Read Miss Eviction Policy Test
-		
-		delay;
-		rd_cpu = 1'd1;
-		addr_cpu = 16'b1100_0001_0001_1010;
-		dcpu = data_cpu;
-		delay;
-		rd_cpu = 1'd1;
-		dcpu = data_cpu;
-		@(posedge wr_mem);
-		ready_mem = 0;
-		repeat(4)
-		delay;
-		
-		ready_mem = 1;
-		
-		@(posedge rd_mem);
-		ready_mem = 0;
-		repeat(4)
-		delay;
-		
-		ready_mem = 1;
-		
-		delay;
-		
-		dmem = 8'hAA;
-		
-		delay;
-		
-		dmem = 8'hBB;
-		
-		delay;
-		
-		dmem = 8'hCC;
-		
-		delay;
-		
-		dmem = 8'hDD;
-		
-		delay;
-		
-		delay;
-		
-		delay;
-		
-		delay;
-		
-		rd_cpu = 1'd0;
-		
-		repeat(10)
-		delay;
-		
-		
-		// End of Simulation
-		#100 $finish;
+    cache_2wsa dut (
+        .clock      (clock),
+        .reset_n    (reset_n),
+        .addr_cpu   (addr_cpu),
+        .cpu_wdata  (cpu_wdata),
+        .cpu_wstrb  (cpu_wstrb),
+        .rd_cpu     (rd_cpu),
+        .wr_cpu     (wr_cpu),
+        .cpu_rdata  (cpu_rdata),
+        .stall_cpu  (stall_cpu),
+        .addr_mem   (addr_mem),
+        .mem_wdata  (mem_wdata),
+        .mem_rdata  (mem_rdata),
+        .rd_mem     (rd_mem),
+        .wr_mem     (wr_mem),
+        .ready_mem  (ready_mem),
+        .cache_hit  (cache_hit),
+        .cache_miss (cache_miss),
+        .cache_wb   (cache_wb)
+    );
 
-	end
-      
+    initial clock = 1'b0;
+    always #5 clock = ~clock;
+
+    // -------------------------------------------------------------------------
+    // Synchronous Backing Memory Model with Configurable / Randomized Latency
+    // (Strictly registered ready_mem -- NO combinational ready_mem hack!)
+    // -------------------------------------------------------------------------
+    reg [31:0] ext_mem [0:16383];
+    reg        mm_busy;
+    reg        mm_is_wr;
+    reg [13:0] mm_addr;
+    reg [31:0] mm_wdata;
+    reg [3:0]  mm_cnt;
+    reg        rand_latency_en;
+    reg [31:0] mm_prng;
+
+    function automatic [31:0] xorshift32(input [31:0] s_in);
+        reg [31:0] x;
+        begin
+            x = s_in;
+            x = x ^ (x << 13);
+            x = x ^ (x >> 17);
+            x = x ^ (x << 5);
+            xorshift32 = x;
+        end
+    endfunction
+
+    integer    obs_rd_mem_cnt;
+    integer    obs_wr_mem_cnt;
+    reg [15:0] obs_last_wb_addr;
+    reg [31:0] obs_last_wb_data;
+    reg [15:0] obs_last_rd_addr;
+
+    integer    obs_hit_cnt;
+    integer    obs_miss_cnt;
+    integer    obs_wb_pulse_cnt;
+
+    always @(posedge clock or negedge reset_n) begin
+        if (!reset_n) begin
+            ready_mem        <= 1'b0;
+            mem_rdata        <= 32'd0;
+            mm_busy          <= 1'b0;
+            mm_is_wr         <= 1'b0;
+            mm_addr          <= 14'd0;
+            mm_wdata         <= 32'd0;
+            mm_cnt           <= 4'd0;
+            obs_rd_mem_cnt   <= 0;
+            obs_wr_mem_cnt   <= 0;
+            obs_last_wb_addr <= 16'd0;
+            obs_last_wb_data <= 32'd0;
+            obs_last_rd_addr <= 16'd0;
+            obs_hit_cnt      <= 0;
+            obs_miss_cnt     <= 0;
+            obs_wb_pulse_cnt <= 0;
+        end else begin
+            ready_mem <= 1'b0;
+
+            if (cache_hit)  obs_hit_cnt      <= obs_hit_cnt + 1;
+            if (cache_miss) obs_miss_cnt     <= obs_miss_cnt + 1;
+            if (cache_wb)   obs_wb_pulse_cnt <= obs_wb_pulse_cnt + 1;
+
+            if (!mm_busy) begin
+                if (!ready_mem && (rd_mem || wr_mem)) begin
+                    if (wr_mem) begin
+                        obs_wr_mem_cnt   <= obs_wr_mem_cnt + 1;
+                        obs_last_wb_addr <= addr_mem;
+                        obs_last_wb_data <= mem_wdata;
+                    end else begin
+                        obs_rd_mem_cnt   <= obs_rd_mem_cnt + 1;
+                        obs_last_rd_addr <= addr_mem;
+                    end
+
+                    if (rand_latency_en) begin
+                        mm_prng <= xorshift32(mm_prng);
+                    end
+                    if (rand_latency_en && ((mm_prng[2:0] % 3'd6) == 3'd0)) begin
+                        // 1-cycle latency case
+                        if (wr_mem)
+                            ext_mem[addr_mem[15:2]] <= mem_wdata;
+                        else
+                            mem_rdata <= ext_mem[addr_mem[15:2]];
+                        ready_mem <= 1'b1;
+                    end else begin
+                        mm_busy  <= 1'b1;
+                        mm_is_wr <= wr_mem;
+                        mm_addr  <= addr_mem[15:2];
+                        mm_wdata <= mem_wdata;
+                        mm_cnt   <= rand_latency_en ? (4'd1 + {1'b0, (mm_prng[5:3] % 3'd5)}) : 4'd3;
+                    end
+                end
+            end else begin
+                if (mm_cnt == 4'd1) begin
+                    if (mm_is_wr)
+                        ext_mem[mm_addr] <= mm_wdata;
+                    else
+                        mem_rdata <= ext_mem[mm_addr];
+                    ready_mem <= 1'b1;
+                    mm_busy   <= 1'b0;
+                    mm_cnt    <= 4'd0;
+                end else begin
+                    mm_cnt <= mm_cnt - 4'd1;
+                end
+            end
+        end
+    end
+
+    // -------------------------------------------------------------------------
+    // Golden Reference Model (2-Way Set-Associative, Write-Back, Write-Alloc, LRU)
+    // -------------------------------------------------------------------------
+    reg [31:0] gold_arch_mem [0:16383];
+    reg        g_valid [0:7][0:1];
+    reg        g_dirty [0:7][0:1];
+    reg [10:0] g_tag   [0:7][0:1];
+    reg [31:0] g_data  [0:7][0:1];
+    reg        g_mru   [0:7]; // 1: Way 0 MRU (Way 1 LRU); 0: Way 1 MRU (Way 0 LRU)
+
+    integer    s, w;
+    task automatic golden_reset_cache;
+        begin
+            for (s = 0; s < 8; s = s + 1) begin
+                g_mru[s] = 1'b0;
+                for (w = 0; w < 2; w = w + 1) begin
+                    g_valid[s][w] = 1'b0;
+                    g_dirty[s][w] = 1'b0;
+                    g_tag[s][w]   = 11'd0;
+                    g_data[s][w]  = 32'd0;
+                end
+            end
+        end
+    endtask
+
+    function automatic [31:0] apply_wstrb(input [31:0] old_d, input [31:0] new_d, input [3:0] strb);
+        begin
+            apply_wstrb = {
+                strb[3] ? new_d[31:24] : old_d[31:24],
+                strb[2] ? new_d[23:16] : old_d[23:16],
+                strb[1] ? new_d[15:8]  : old_d[15:8],
+                strb[0] ? new_d[7:0]   : old_d[7:0]
+            };
+        end
+    endfunction
+
+    // Standard req / !stall CPU transaction driver (supports 0-gap back-to-back!)
+    task automatic do_cpu_op(
+        input  [15:0] addr,
+        input         is_wr,
+        input  [31:0] wdata,
+        input  [3:0]  wstrb,
+        input         idle_after,
+        output [31:0] rdata_out
+    );
+        integer guard;
+        begin
+            addr_cpu  = addr;
+            cpu_wdata = wdata;
+            cpu_wstrb = wstrb;
+            rd_cpu    = !is_wr;
+            wr_cpu    = is_wr;
+            #1;
+            guard = 0;
+            while (stall_cpu && guard < 100) begin
+                @(posedge clock);
+                #1;
+                guard = guard + 1;
+            end
+            if (guard >= 100) begin
+                $display("FAIL: timeout waiting for stall_cpu==0 on addr=0x%04h wr=%b", addr, is_wr);
+                $finish(1);
+            end
+            // Data is valid right before the completing posedge!
+            rdata_out = cpu_rdata;
+            @(posedge clock);
+            #1;
+            if (idle_after) begin
+                rd_cpu = 1'b0;
+                wr_cpu = 1'b0;
+            end
+        end
+    endtask
+
+    // Golden-checked single transaction
+    integer tot_hits, tot_misses, tot_wbs, tot_clean_evicts;
+
+    task automatic checked_op(
+        input [15:0] addr,
+        input        is_wr,
+        input [31:0] wdata,
+        input [3:0]  wstrb,
+        input        idle_after
+    );
+        reg [10:0] tag;
+        reg [2:0]  idx;
+        reg        h0, h1, exp_hit, vic, exp_wb;
+        reg [15:0] exp_wb_addr;
+        reg [31:0] exp_wb_data;
+        reg [31:0] exp_rdata;
+        reg [31:0] got_rdata;
+        reg [31:0] line_val;
+        integer    pre_hit, pre_miss, pre_wb, pre_rd_mem, pre_wr_mem;
+        begin
+            tag = addr[15:5];
+            idx = addr[4:2];
+
+            h0 = g_valid[idx][0] && (g_tag[idx][0] == tag);
+            h1 = g_valid[idx][1] && (g_tag[idx][1] == tag);
+            exp_hit = h0 || h1;
+
+            exp_wb      = 1'b0;
+            exp_wb_addr = 16'd0;
+            exp_wb_data = 32'd0;
+            exp_rdata   = gold_arch_mem[addr[15:2]];
+
+            pre_hit    = obs_hit_cnt;
+            pre_miss   = obs_miss_cnt;
+            pre_wb     = obs_wb_pulse_cnt;
+            pre_rd_mem = obs_rd_mem_cnt;
+            pre_wr_mem = obs_wr_mem_cnt;
+
+            do_cpu_op(addr, is_wr, wdata, wstrb, idle_after, got_rdata);
+
+            if (!is_wr && (got_rdata !== exp_rdata)) begin
+                $display("FAIL [DATA MISMATCH]: addr=0x%04h got=0x%08h exp=0x%08h (exp_hit=%b)",
+                         addr, got_rdata, exp_rdata, exp_hit);
+                $finish(1);
+            end
+
+            // Update golden cache & verify exact hit/miss/wb events
+            if (exp_hit) begin
+                tot_hits = tot_hits + 1;
+                if ((obs_hit_cnt - pre_hit) != 1 || (obs_miss_cnt - pre_miss) != 0 ||
+                    (obs_rd_mem_cnt - pre_rd_mem) != 0 || (obs_wr_mem_cnt - pre_wr_mem) != 0) begin
+                    $display("FAIL [HIT EVENT]: addr=0x%04h d_hit=%0d d_miss=%0d d_rd=%0d d_wr=%0d",
+                             addr, obs_hit_cnt - pre_hit, obs_miss_cnt - pre_miss,
+                             obs_rd_mem_cnt - pre_rd_mem, obs_wr_mem_cnt - pre_wr_mem);
+                    $finish(1);
+                end
+                if (h0) begin
+                    g_mru[idx] = 1'b1;
+                    if (is_wr && (|wstrb)) begin
+                        g_data[idx][0]  = apply_wstrb(g_data[idx][0], wdata, wstrb);
+                        g_dirty[idx][0] = 1'b1;
+                    end
+                end else begin
+                    g_mru[idx] = 1'b0;
+                    if (is_wr && (|wstrb)) begin
+                        g_data[idx][1]  = apply_wstrb(g_data[idx][1], wdata, wstrb);
+                        g_dirty[idx][1] = 1'b1;
+                    end
+                end
+            end else begin
+                tot_misses = tot_misses + 1;
+                vic = (!g_valid[idx][0]) ? 1'b0 :
+                      (!g_valid[idx][1]) ? 1'b1 :
+                      g_mru[idx];
+                exp_wb = g_valid[idx][vic] && g_dirty[idx][vic];
+                if (exp_wb) begin
+                    tot_wbs     = tot_wbs + 1;
+                    exp_wb_addr = {g_tag[idx][vic], idx, 2'b00};
+                    exp_wb_data = g_data[idx][vic];
+                end else if (g_valid[idx][vic]) begin
+                    tot_clean_evicts = tot_clean_evicts + 1;
+                end
+
+                if ((obs_hit_cnt - pre_hit) != 0 || (obs_miss_cnt - pre_miss) != 1 ||
+                    (obs_rd_mem_cnt - pre_rd_mem) != 1 ||
+                    (obs_wr_mem_cnt - pre_wr_mem) != (exp_wb ? 1 : 0) ||
+                    (obs_wb_pulse_cnt - pre_wb)   != (exp_wb ? 1 : 0)) begin
+                    $display("FAIL [MISS EVENT]: addr=0x%04h exp_wb=%b d_hit=%0d d_miss=%0d d_rd=%0d d_wr=%0d d_wbp=%0d",
+                             addr, exp_wb, obs_hit_cnt - pre_hit, obs_miss_cnt - pre_miss,
+                             obs_rd_mem_cnt - pre_rd_mem, obs_wr_mem_cnt - pre_wr_mem,
+                             obs_wb_pulse_cnt - pre_wb);
+                    $finish(1);
+                end
+
+                if (exp_wb) begin
+                    if (obs_last_wb_addr !== exp_wb_addr || obs_last_wb_data !== exp_wb_data) begin
+                        $display("FAIL [WB PAYLOAD]: got addr=0x%04h data=0x%08h | exp addr=0x%04h data=0x%08h",
+                                 obs_last_wb_addr, obs_last_wb_data, exp_wb_addr, exp_wb_data);
+                        $finish(1);
+                    end
+                    if (ext_mem[exp_wb_addr[15:2]] !== exp_wb_data) begin
+                        $display("FAIL [WB EXT_MEM]: ext_mem[0x%04h]=0x%08h exp=0x%08h",
+                                 exp_wb_addr, ext_mem[exp_wb_addr[15:2]], exp_wb_data);
+                        $finish(1);
+                    end
+                end
+
+                if (obs_last_rd_addr !== {addr[15:2], 2'b00}) begin
+                    $display("FAIL [RD ADDR]: got=0x%04h exp=0x%04h", obs_last_rd_addr, {addr[15:2], 2'b00});
+                    $finish(1);
+                end
+
+                line_val = ext_mem[addr[15:2]];
+                if (is_wr && (|wstrb)) begin
+                    line_val = apply_wstrb(line_val, wdata, wstrb);
+                end
+                g_valid[idx][vic] = 1'b1;
+                g_dirty[idx][vic] = is_wr && (|wstrb);
+                g_tag[idx][vic]   = tag;
+                g_data[idx][vic]  = line_val;
+                g_mru[idx]        = !vic;
+            end
+
+            if (is_wr && (|wstrb)) begin
+                gold_arch_mem[addr[15:2]] = apply_wstrb(gold_arch_mem[addr[15:2]], wdata, wstrb);
+            end
+        end
+    endtask
+
+    integer    k, iter, rand_resets;
+    reg [31:0] prng;
+    reg [31:0] rval, r32;
+    reg [15:0] raddr;
+    reg [3:0]  rstrb;
+    reg        rwr, ridle;
+
+    initial begin
+        prng             = 32'hCACE_2026;
+        mm_prng          = 32'h1234_5678;
+        rand_latency_en  = 1'b0;
+        addr_cpu         = 16'd0;
+        cpu_wdata        = 32'd0;
+        cpu_wstrb        = 4'b1111;
+        rd_cpu           = 1'b0;
+        wr_cpu           = 1'b0;
+        tot_hits         = 0;
+        tot_misses       = 0;
+        tot_wbs          = 0;
+        tot_clean_evicts = 0;
+        rand_resets      = 0;
+
+        for (k = 0; k < 16384; k = k + 1) begin
+            ext_mem[k]       = {16'hA000, k[15:0]};
+            gold_arch_mem[k] = {16'hA000, k[15:0]};
+        end
+        golden_reset_cache();
+
+        reset_n = 1'b0;
+        repeat (3) @(posedge clock);
+        #1;
+        reset_n = 1'b1;
+
+        // =====================================================================
+        // DIRECTED TESTS (All 5 previously failing bugs + write-back deferral)
+        // =====================================================================
+
+        // D1: Cold read miss on Set 0 (0x0000) & Set 3 (0x000C), then ZERO-GAP
+        // back-to-back write hit Set 0 -> immediate read Set 3 (index-mux bug test!)
+        checked_op(16'h0000, 1'b0, 32'd0,        4'b1111, 1'b0); // miss Set 0
+        checked_op(16'h000C, 1'b0, 32'd0,        4'b1111, 1'b0); // miss Set 3 (0-gap!)
+        checked_op(16'h0000, 1'b1, 32'hDEAD_BEEF,4'b1111, 1'b0); // write hit Set 0 (0-gap!)
+        checked_op(16'h000C, 1'b0, 32'd0,        4'b1111, 1'b0); // read hit Set 3 (0-gap!)
+        checked_op(16'h0000, 1'b0, 32'd0,        4'b1111, 1'b1); // read hit Set 0 -> must be DEAD_BEEF!
+
+        // Verify write-back deferral: ext_mem[0x0000] must STILL hold original value!
+        if (ext_mem[0] !== 32'hA000_0000) begin
+            $display("FAIL [WRITE-BACK DEFERRAL]: ext_mem[0]=0x%08h was modified prematurely!", ext_mem[0]);
+            $finish(1);
+        end
+
+        // D2: Write miss (write-allocate) with partial strobe -> immediate cross-set op
+        checked_op(16'h0020, 1'b1, 32'h0000_7700, 4'b0010, 1'b0); // write miss Set 0 Way 1, byte 1 = 0x77
+        checked_op(16'h0014, 1'b0, 32'd0,         4'b1111, 1'b0); // immediate miss Set 5 (0-gap!)
+        checked_op(16'h0020, 1'b0, 32'd0,         4'b1111, 1'b1); // read hit Set 0 Way 1 -> merged byte 0x77!
+
+        // D3: Make Set 0 Way 0 (0x0000, dirty) MRU, Way 1 (0x0020, dirty) LRU -> miss Tag 2 (0x0040)
+        // Must evict & write back 0x0020 to ext_mem while keeping 0x0000 resident!
+        checked_op(16'h0000, 1'b0, 32'd0, 4'b1111, 1'b0); // touch 0x0000 -> Way 0 MRU, Way 1 LRU
+        checked_op(16'h0040, 1'b0, 32'd0, 4'b1111, 1'b0); // miss Tag 2 -> evicts dirty Way 1 (0x0020)!
+        checked_op(16'h0000, 1'b0, 32'd0, 4'b1111, 1'b1); // 0x0000 MUST STILL HIT!
+
+        // D4: Clean-victim eviction check!
+        // Currently Set 0: Way 0 = 0x0000 (DIRTY & MRU), Way 1 = 0x0040 (CLEAN & LRU).
+        // Accessing Tag 3 (0x0060) MUST evict CLEAN Way 1 with ZERO wr_mem!
+        checked_op(16'h0060, 1'b0, 32'd0, 4'b1111, 1'b1);
+
+        // D5: Mid-run reset_n tag invalidation check!
+        // 0x0000 is dirty in cache (0xDEAD_BEEF), while ext_mem[0] is still 0xA000_0000.
+        // Update ext_mem[0] to 0x1234_5678, pulse reset_n, and verify cache MISSES & reads 0x1234_5678!
+        reset_n = 1'b0;
+        rd_cpu  = 1'b0;
+        wr_cpu  = 1'b0;
+        repeat (3) @(posedge clock);
+        ext_mem[0]       = 32'h1234_5678;
+        for (k = 0; k < 16384; k = k + 1) gold_arch_mem[k] = ext_mem[k];
+        golden_reset_cache();
+        #1;
+        reset_n = 1'b1;
+        // Issue read IMMEDIATELY on cycle 0 after reset release (tests S_INIT stall too!)
+        checked_op(16'h0000, 1'b0, 32'd0, 4'b1111, 1'b1);
+
+        $display("PASS [Directed Cache Audit]: D1(b2b cross-set), D2(write-alloc+partial), D3(LRU dirty WB), D4(clean victim 0-WB), D5(reset invalidation)");
+
+        // =====================================================================
+        // 2,500-OP RANDOMIZED GOLDEN-SCOREBOARD STRESS TEST
+        // =====================================================================
+        rand_latency_en = 1'b1;
+
+        for (iter = 0; iter < 2500; iter = iter + 1) begin
+            // Periodic mid-run reset every 600 ops to stress S_INIT tag invalidation
+            if (iter > 0 && (iter % 600) == 0) begin
+                rd_cpu  = 1'b0;
+                wr_cpu  = 1'b0;
+                reset_n = 1'b0;
+                repeat (2) @(posedge clock);
+                for (k = 0; k < 16384; k = k + 1) gold_arch_mem[k] = ext_mem[k];
+                golden_reset_cache();
+                #1;
+                reset_n = 1'b1;
+                rand_resets = rand_resets + 1;
+            end
+
+            prng  = xorshift32(prng);
+            r32   = prng;
+            // Focus on 5 conflicting tags per set across all 8 sets so hits, misses,
+            // clean evictions, and dirty writebacks all occur heavily!
+            raddr = {8'd0, r32[2:0] % 3'd5, r32[5:3], 2'b00};
+            rwr   = r32[6];
+            // Mix full-word writes (60%) with random partial byte strobes (40%)
+            if ((r32[11:8] % 4'd10) < 4'd6)
+                rstrb = 4'b1111;
+            else
+                rstrb = r32[15:12];
+            ridle = (r32[18:16] == 3'd0); // ~87.5% zero-gap back-to-back!
+            prng  = xorshift32(prng);
+            rval  = prng;
+
+            checked_op(raddr, rwr, rval, rstrb, ridle);
+            if (ridle) begin
+                @(posedge clock);
+                #1;
+            end
+        end
+
+        // Final check: force eviction of all 8 sets x 2 ways using fresh tags 6 & 7,
+        // then verify EVERY word of ext_mem matches gold_arch_mem!
+        for (s = 0; s < 8; s = s + 1) begin
+            checked_op({8'd0, 3'd6, s[2:0], 2'b00}, 1'b0, 32'd0, 4'b1111, 1'b0);
+            checked_op({8'd0, 3'd7, s[2:0], 2'b00}, 1'b0, 32'd0, 4'b1111, 1'b0);
+        end
+        rd_cpu = 1'b0;
+        wr_cpu = 1'b0;
+        @(posedge clock);
+
+        for (k = 0; k < 1024; k = k + 1) begin
+            if (ext_mem[k] !== gold_arch_mem[k]) begin
+                $display("FAIL [FINAL FLUSH COHERENCE]: word %0d ext_mem=0x%08h gold=0x%08h",
+                         k, ext_mem[k], gold_arch_mem[k]);
+                $finish(1);
+            end
+        end
+
+        $display("PASS [Randomized Golden Scoreboard]: 2500 random ops + flush verified! hits=%0d misses=%0d dirty_wbs=%0d clean_evicts=%0d resets=%0d",
+                 tot_hits, tot_misses, tot_wbs, tot_clean_evicts, rand_resets);
+        $finish;
+    end
+
 endmodule
-

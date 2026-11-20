@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module input2_mux(
 input [31:0] read_reg_data2,
 input [31:0] read_imm_data2,
@@ -13,4 +15,4 @@ begin
   endcase 
 end
 
-endmodule 
+endmodule

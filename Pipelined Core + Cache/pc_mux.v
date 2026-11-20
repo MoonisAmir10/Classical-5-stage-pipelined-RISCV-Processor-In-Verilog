@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module pc_mux(
 input [31:0] alu_out,
 input [31:0] pc,
@@ -13,4 +15,4 @@ begin
   endcase 
 end
 
-endmodule 
+endmodule

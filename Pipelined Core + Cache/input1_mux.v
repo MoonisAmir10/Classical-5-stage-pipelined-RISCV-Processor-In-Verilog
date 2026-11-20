@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module input1_mux(
 input [31:0] read_reg_data1,
 input [31:0] pc,

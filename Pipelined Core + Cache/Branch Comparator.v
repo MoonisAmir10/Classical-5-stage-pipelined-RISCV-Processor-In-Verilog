@@ -1,28 +1,23 @@
+`timescale 1ns / 1ps
+
 module branch_comparator(
-  input [31:0] inpA,
-  input [31:0] inpB,
-  input brun_en,
-  output reg breq_flag,
-  output reg brlt_flag,
-  output reg bge_flag
+    input  wire [31:0] inpA,
+    input  wire [31:0] inpB,
+    input  wire        brun_en,
+    output reg         breq_flag,
+    output reg         brlt_flag,
+    output reg         bge_flag
 );
 
-always @(*)
-begin
-  // Initialize flags to default values
-  breq_flag = 0;
-  brlt_flag = 0;
-  bge_flag = 0;
-
-  if (inpA == inpB)
-    breq_flag = 1;
-  else if (($unsigned(inpA) < $unsigned(inpB)) && brun_en == 1)
-      brlt_flag = 1;
-  else if (($signed(inpA) < $signed(inpB)) && brun_en == 0)
-      brlt_flag = 1;
-  else if (inpA >= inpB)
-    bge_flag = 1;
+always @(*) begin
+    breq_flag = (inpA == inpB);
+    if (brun_en) begin
+        brlt_flag = ($unsigned(inpA) <  $unsigned(inpB));
+        bge_flag  = ($unsigned(inpA) >= $unsigned(inpB));
+    end else begin
+        brlt_flag = ($signed(inpA) <  $signed(inpB));
+        bge_flag  = ($signed(inpA) >= $signed(inpB));
+    end
 end
 
 endmodule
-

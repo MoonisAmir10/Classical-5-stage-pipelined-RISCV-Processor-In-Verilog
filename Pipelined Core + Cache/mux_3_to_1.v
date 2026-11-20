@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module mux_3_to_1(
 input [31:0] a,b,c,
 input [1:0] sel,

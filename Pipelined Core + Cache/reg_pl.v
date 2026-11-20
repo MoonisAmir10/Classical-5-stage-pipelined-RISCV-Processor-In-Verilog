@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module reg_pl #(parameter N = 32) (inp,clk,reset,en,clear,out);
 
 input [N-1:0] inp;

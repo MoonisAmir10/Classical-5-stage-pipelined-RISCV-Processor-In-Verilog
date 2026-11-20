@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module imm_generate(
 input [11:0]imm_12,
 input [4:0]reg_write_dest,
@@ -33,4 +35,4 @@ else if (imm_sel == 2'b10)
    read_imm_data2 = { { 19{b_format_num[11]}}, b_format_num, 1'b0};
 end
 
-endmodule  
+endmodule

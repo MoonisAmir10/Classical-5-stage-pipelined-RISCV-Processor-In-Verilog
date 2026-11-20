@@ -1,61 +1,66 @@
-module hazard_unit(RegWriteM, RegWriteW, wbsel_E, pc_sel, RD_E, RD_M, RD_W, Rs1_D, Rs1_E, 
-                   Rs2_D, Rs2_E, ForwardAE, ForwardBE, stallF, stallD, flushD, flushE);
+`timescale 1ns / 1ps
 
-    input RegWriteM, RegWriteW, pc_sel;
-	 input [1:0] wbsel_E;
-    input [4:0] RD_E, RD_M, RD_W, Rs1_D, Rs1_E, Rs2_D, Rs2_E;
-    output reg [1:0] ForwardAE, ForwardBE;
-	 output stallF, stallD, flushD, flushE;
-	 
-	 wire lwstall;
-    
-//    assign ForwardAE = (rst == 1'b0) ? 2'b00 : 
-//                       ((RegWriteM == 1'b1) & (RD_M != 5'h00) & (RD_M == Rs1_E)) ? 2'b10 :
-//                       ((RegWriteW == 1'b1) & (RD_W != 5'h00) & (RD_W == Rs1_E)) ? 2'b01 : 2'b00;
-//                       
-//    assign ForwardBE = (rst == 1'b0) ? 2'b00 : 
-//                       ((RegWriteM == 1'b1) & (RD_M != 5'h00) & (RD_M == Rs2_E)) ? 2'b10 :
-//                       ((RegWriteW == 1'b1) & (RD_W != 5'h00) & (RD_W == Rs2_E)) ? 2'b01 : 2'b00;
+module hazard_unit(
+    input  wire       RegWriteM,
+    input  wire       RegWriteW,
+    input  wire [1:0] wbsel_E,
+    input  wire       pc_sel,
+    input  wire       dcache_stall,
+    input  wire [4:0] RD_E,
+    input  wire [4:0] RD_M,
+    input  wire [4:0] RD_W,
+    input  wire [4:0] Rs1_D,
+    input  wire [4:0] Rs1_E,
+    input  wire [4:0] Rs2_D,
+    input  wire [4:0] Rs2_E,
+    output reg  [1:0] ForwardAE,
+    output reg  [1:0] ForwardBE,
+    output wire       en_F,
+    output wire       en_D,
+    output wire       en_E,
+    output wire       en_M,
+    output wire       en_W,
+    output wire       flushD,
+    output wire       flushE
+);
 
+wire lwstall;
 
-///// Forwarding Logic /////
-always@(*)
-begin
-  if (((Rs1_E == RD_M) && RegWriteM) && (Rs1_E != 0))
-      ForwardAE = 2'b10;
-  else if (((Rs1_E == RD_W) && RegWriteW) && (Rs1_E != 0))
-      ForwardAE = 2'b01;
-  else
-      ForwardAE = 2'b00;
+// EX-stage RAW Forwarding
+always @(*) begin
+    if (((Rs1_E == RD_M) && RegWriteM) && (Rs1_E != 5'd0))
+        ForwardAE = 2'b10;
+    else if (((Rs1_E == RD_W) && RegWriteW) && (Rs1_E != 5'd0))
+        ForwardAE = 2'b01;
+    else
+        ForwardAE = 2'b00;
 end
 
-always@(*)
-begin
-  if (((Rs2_E == RD_M) && RegWriteM) && (Rs2_E != 0))
-      ForwardBE = 2'b10;
-  else if (((Rs2_E == RD_W) && RegWriteW) && (Rs2_E != 0))
-      ForwardBE = 2'b01;
-  else
-      ForwardBE = 2'b00;
+always @(*) begin
+    if (((Rs2_E == RD_M) && RegWriteM) && (Rs2_E != 5'd0))
+        ForwardBE = 2'b10;
+    else if (((Rs2_E == RD_W) && RegWriteW) && (Rs2_E != 5'd0))
+        ForwardBE = 2'b01;
+    else
+        ForwardBE = 2'b00;
 end
 
+// Load-use hazard detection (LW in EX with matching non-zero destination)
+assign lwstall = (wbsel_E == 2'b01) && (RD_E != 5'd0) &&
+                 ((Rs1_D == RD_E) || (Rs2_D == RD_E));
 
-/////// LW hazard control logic /////
-//assign lwstall = ((Rs1_D == RD_E) | (Rs2_D == RD_E)) & wbsel_E[0] & wbsel_E[1];  // original
-assign lwstall = ((Rs1_D == RD_E) | (Rs2_D == RD_E)) & (wbsel_E[0]);
+// Pipeline stage enables & flushes:
+// - When dcache_stall == 1, freeze all 5 stages and suppress flushes so in-flight
+//   branch/load-use state is preserved intact until the cache completes.
+// - On taken branch/jump in EX (pc_sel == 1) with !dcache_stall, PC immediately
+//   loads alu_EX (en_F = 1) while IF/ID and ID/EX flush (2-cycle branch penalty).
+assign en_F   = !dcache_stall && !lwstall;
+assign en_D   = !dcache_stall && !lwstall;
+assign en_E   = !dcache_stall;
+assign en_M   = !dcache_stall;
+assign en_W   = !dcache_stall;
 
-//assign stallF = lwstall | pc_sel;
-assign stallF = !(lwstall | pc_sel);
-//assign stallF = !(lwstall);
+assign flushD = !dcache_stall && pc_sel;
+assign flushE = !dcache_stall && (lwstall || pc_sel);
 
-//assign stallD = lwstall | pc_sel;
-assign stallD = !(lwstall | pc_sel);
-//assign stallD = !(lwstall);
-
-assign flushE = lwstall | pc_sel;
-
-///// Brach and jump hazard control /////
-///// pc_sel is from EX stage       /////
-assign flushD = pc_sel;
-							  
 endmodule
