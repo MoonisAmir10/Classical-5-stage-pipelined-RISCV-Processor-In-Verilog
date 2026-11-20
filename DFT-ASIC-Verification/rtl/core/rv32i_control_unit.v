@@ -14,6 +14,7 @@ module rv32i_control_unit (
     output reg  [1:0] imm_sel,
     output reg        bsel,
     output reg        asel,
+    output reg        dm_read_en,
     output reg        dm_write_en,
     output reg  [1:0] wbsel,
     output reg        brun_en,
@@ -26,6 +27,7 @@ module rv32i_control_unit (
         bsel         = 1'b0;
         asel         = 1'b0;
         wbsel        = 2'b00;
+        dm_read_en   = 1'b0;
         dm_write_en  = 1'b0;
         alu_select   = 4'b0000;
 
@@ -33,12 +35,13 @@ module rv32i_control_unit (
             reg_write_en = 1'b1;
             case (funct3)
                 3'b000: alu_select = (funct7 == 7'd32) ? 4'b0001 : 4'b0000;
+                3'b001: alu_select = 4'b0100;
+                3'b010: alu_select = 4'b0010;
+                3'b011: alu_select = 4'b1001;
+                3'b100: alu_select = 4'b1000;
+                3'b101: alu_select = (funct7 == 7'd32) ? 4'b0011 : 4'b0101;
                 3'b110: alu_select = 4'b0110;
                 3'b111: alu_select = 4'b0111;
-                3'b001: alu_select = 4'b0100;
-                3'b101: alu_select = (funct7 == 7'd32) ? 4'b0011 : 4'b0101;
-                3'b010: alu_select = 4'b0010;
-                3'b100: alu_select = 4'b1000;
                 default: alu_select = 4'b0000;
             endcase
         end else if (opcode == 7'b0010011) begin // I-type ALU
@@ -47,12 +50,13 @@ module rv32i_control_unit (
             bsel         = 1'b1;
             case (funct3)
                 3'b000: alu_select = 4'b0000;
+                3'b001: alu_select = 4'b0100;
+                3'b010: alu_select = 4'b0010;
+                3'b011: alu_select = 4'b1001;
+                3'b100: alu_select = 4'b1000;
+                3'b101: alu_select = (funct7 == 7'd32) ? 4'b0011 : 4'b0101;
                 3'b110: alu_select = 4'b0110;
                 3'b111: alu_select = 4'b0111;
-                3'b001: alu_select = 4'b0100;
-                3'b101: alu_select = (funct7 == 7'd32) ? 4'b0011 : 4'b0101;
-                3'b010: alu_select = 4'b0010;
-                3'b100: alu_select = 4'b1000;
                 default: alu_select = 4'b0000;
             endcase
         end else if (opcode == 7'b0000011) begin // LW
@@ -60,6 +64,7 @@ module rv32i_control_unit (
             imm_sel      = 2'b01;
             bsel         = 1'b1;
             wbsel        = 2'b01;
+            dm_read_en   = 1'b1;
         end else if (opcode == 7'b0100011) begin // SW
             imm_sel      = 2'b00;
             bsel         = 1'b1;
@@ -76,19 +81,23 @@ module rv32i_control_unit (
         end
     end
 
-    // Execute stage branch & jump controller (single driver for pc_sel and brun_en)
+    // Execute stage unsigned-branch mode (independent of comparator flags)
     always @(*) begin
-        pc_sel  = 1'b0;
-        brun_en = 1'b0;
+        brun_en = (opcode_EX == 7'b1100011) && (funct3_EX[2:1] == 2'b11);
+    end
+
+    // Execute stage branch & jump controller
+    always @(*) begin
+        pc_sel = 1'b0;
 
         if (opcode_EX == 7'b1100011) begin
             case (funct3_EX)
-                3'b000: pc_sel = breq_flag;                              // BEQ
-                3'b001: pc_sel = ~breq_flag;                             // BNE
-                3'b100: pc_sel = brlt_flag;                              // BLT
-                3'b101: pc_sel = bge_flag;                               // BGE
-                3'b110: begin brun_en = 1'b1; pc_sel = brlt_flag; end    // BLTU
-                3'b111: begin brun_en = 1'b1; pc_sel = bge_flag;  end    // BGEU
+                3'b000: pc_sel = breq_flag;   // BEQ
+                3'b001: pc_sel = ~breq_flag;  // BNE
+                3'b100: pc_sel = brlt_flag;   // BLT
+                3'b101: pc_sel = bge_flag;    // BGE
+                3'b110: pc_sel = brlt_flag;   // BLTU
+                3'b111: pc_sel = bge_flag;    // BGEU
                 default: pc_sel = 1'b0;
             endcase
         end else if (opcode_EX == 7'b1100111) begin

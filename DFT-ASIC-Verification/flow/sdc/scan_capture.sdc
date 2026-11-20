@@ -26,5 +26,5 @@ set_multicycle_path -hold  3 -from [get_clocks tck]
 set_false_path -from [get_ports {sys_rst_n trst_n test_mode scan_en scan_in[*]}]
 set_false_path -to   [get_ports {scan_out[*] tdo tdo_en}]
 
-set_input_delay  1.5 -clock sys_clk [get_ports {prog_sel cache_cpu_wdata[*] cache_addr_cpu[*] cache_rd_cpu cache_wr_cpu cache_mem_rdata[*] cache_ready_mem}]
-set_output_delay 1.5 -clock sys_clk [get_ports {x14[*] pc_obs[*] alu_obs[*] cache_cpu_rdata[*] cache_cpu_rdata_oe cache_stall_cpu cache_mem_wdata[*] cache_mem_wdata_oe cache_addr_mem[*] cache_rd_mem cache_wr_mem bist_done bist_fail}]
+set_input_delay  1.5 -clock sys_clk [get_ports {prog_sel cache_mem_rdata[*] cache_ready_mem}]
+set_output_delay 1.5 -clock sys_clk [get_ports {x14[*] pc_obs[*] alu_obs[*] cache_mem_wdata[*] cache_addr_mem[*] cache_rd_mem cache_wr_mem cache_stall_cpu cache_hit cache_miss cache_wb bist_done bist_fail}]

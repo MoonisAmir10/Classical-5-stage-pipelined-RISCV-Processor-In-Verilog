@@ -25,10 +25,10 @@
 ### 2.1 Phase 1 — Baseline RTL Verification (Completed)
 | ID | Testcase | Scope | Checking Method | Status |
 | :--- | :--- | :--- | :--- | :---: |
-| `BASE-01` | `tb_rv32i_baseline` (Prog 0) | RV32I Fibonacci `1..34` on `x14`, hazard forwarding | Self-checking TB + SVA reset check (`iverilog` & `Verilator`) | **PASS** |
-| `BASE-02` | `tb_rv32i_baseline` (Prog 1) | `SW`/`LW` + load-use stall + `ADD/SUB/XOR/ADDI` | Self-checking `x14 == 12` (`iverilog` & `Verilator`) | **PASS** |
-| `BASE-03` | `tb_cache_baseline` | Read miss/refill, dirty write hit, LRU writeback, MBIST mux, SA0 inject | Self-checking TB (`iverilog` & `Verilator`) | **PASS** |
-| `BASE-04` | Yosys Synthesis Check | `rv32i_processor` (`2,035` FFs) & `cache_2wsa_dft` (`282` FFs + `4` SRAM blackboxes) | Zero latches, zero tri-states, `sg13g2` mapping | **PASS** |
+| `BASE-01` | `tb_rv32i_baseline` (Prog 0) | RV32I Fibonacci `1..34` on `x14`, hazard forwarding (`0` spurious cache accesses) | Self-checking TB + SVA reset check (`iverilog` & `Verilator`) | **PASS** |
+| `BASE-02` | `tb_rv32i_baseline` (Prog 1) | End-to-end RV32I + integrated 2-way D-cache (`LW`/`SW`, hit/miss/evict/dirty WB, load-use stall, `SW` fwd) | Self-checking `x14 == 1297` (`7H/7M/2WB`, `iverilog` & `Verilator`) | **PASS** |
+| `BASE-03` | `tb_cache_baseline` | Directed + 1,000-op randomized golden-scoreboard 2-way LRU cache verification + MBIST mux & SA0 inject | Self-checking TB (`iverilog` & `Verilator`) | **PASS** |
+| `BASE-04` | Yosys Synthesis Check | `rv32i_processor` (`1,523` FFs) & `cache_2wsa_dft` (`152` FFs + `4` SRAM blackboxes) | Zero latches, zero tri-states, `sg13g2` mapping | **PASS** |
 
 ### 2.2 Phase 2 & 3 — DFT Architecture DV (Directed, Constrained-Random, SVA)
 | ID | Testcase | Stimulus Type | Key Checks & Assertions |
@@ -46,12 +46,12 @@
 ### 2.3 Phase 4 & 5 — ATPG, Mode STA & SDF Gate-Level Debug
 | ID | Flow Step | Scope / Experiment | Acceptance Criteria |
 | :--- | :--- | :--- | :--- |
-| `ATPG-01` | Scan Chain Integrity | `1/4/8`-chain `sg13g2_mux2_1` stitched netlists (`scan_stitch.py`) + `soc_dft_top` `-DPOST_SCAN_STITCH` | **PASS** — `tb_scan_chain_generic` (`1/4/8` chains) + `tb_soc_scan8_gls` (`2,151`-FF bypass, Fibonacci `x14=34`, `2:8` compressed LOC, MBIST) pass in `iverilog` (`make test-scan-gls`) |
-| `ATPG-02` | Trade-Off Sweep | `1` vs. `4` vs. `8` chains; `4:1`/`8:2`/`8:1` XOR; `2:8` LFSR (`32..4096`); Hybrid top-off | **PASS** — `41,842` faults (`99.983%` All-PO / `97.163%` Scan-Out); CSVs, report (`docs/atpg_tradeoff_report.md`) & 3-panel plot (`docs/figures/atpg_tradeoff_charts.png`) generated via `make atpg-sweep` |
-| `STA-01` | `func.sdc` Timing Closure | `sys_clk` (`100 MHz`) propagated functional mode (`typ`/`slow`/`fast`) | **PASS** — `slow`: `+0.95 ns` setup (`110.50 MHz`) / `+0.24 ns` hold; `fast`: `+5.99 ns` / `+0.04 ns` (`make sta`) |
+| `ATPG-01` | Scan Chain Integrity | `1/4/8`-chain `sg13g2_mux2_1` stitched netlists (`scan_stitch.py`) + `soc_dft_top` `-DPOST_SCAN_STITCH` | **PASS** — `tb_scan_chain_generic` (`1/4/8` chains) + `tb_soc_scan8_gls` (`1,586`-FF bypass, Fibonacci `x14=34`, integrated D-cache `x14=1297` `7H/7M/2WB`, `2:8` compressed LOC, MBIST) pass in `iverilog` (`make test-scan-gls`) |
+| `ATPG-02` | Trade-Off Sweep | `1` vs. `4` vs. `8` chains; `4:1`/`8:2`/`8:1` XOR; `2:8` LFSR (`32..4096`); Hybrid top-off | **PASS** — `37,748` faults (`99.976%` All-PO / `94.283%` Scan-Out); CSVs, report (`docs/atpg_tradeoff_report.md`) & 3-panel plot (`docs/figures/atpg_tradeoff_charts.png`) generated via `make atpg-sweep` |
+| `STA-01` | `func.sdc` Timing Closure | `sys_clk` (`100 MHz`) propagated functional mode (`typ`/`slow`/`fast`) | **PASS** — `slow`: `+0.87 ns` setup (`109.53 MHz`) / `+0.15 ns` hold; `fast`: `+5.61 ns` / `+0.00 ns` (`make sta`) |
 | `STA-02` | `scan_shift.sdc` Closure | `tck` (`10 MHz`), `set_case_analysis` + SRAM standby false paths | **PASS** — Zero hold violations across `typ` (`+0.09`), `slow` (`+0.23`), `fast` (`+0.01 ns`) (`make sta`) |
-| `STA-03` | `scan_capture.sdc` Closure | At-speed `100 MHz` LOC capture window (`scan_en=0`), multicycle TDR paths | **PASS** — `slow`: `+0.95 ns` setup / `+0.24 ns` hold; `fast`: `+4.39 ns` / `+0.05 ns` (`make sta`) |
-| `GLS-01` | SDF Gate-Level Sim | `iverilog -gspecify` + OpenSTA `.sdf` (`slow`/`typ`/`fast`) | **PASS** — `100 MHz` FUNC (`x14=34`), 2,151-FF `00110011...` shift, March-C MBIST (`53` cycles), and `2:8` Compressed LOC (`MISR=0xfb9d`) pass (`make test-sdf-gls`) |
+| `STA-03` | `scan_capture.sdc` Closure | At-speed `100 MHz` LOC capture window (`scan_en=0`), multicycle TDR paths | **PASS** — `slow`: `+0.87 ns` setup / `+0.17 ns` hold; `fast`: `+4.39 ns` / `+0.01 ns` (`make sta`) |
+| `GLS-01` | SDF Gate-Level Sim | `iverilog -gspecify` + OpenSTA `.sdf` (`slow`/`typ`/`fast`) | **PASS** — `100 MHz` FUNC Fib (`x14=34`) + Integrated D-Cache (`x14=1297`), 1,586-FF `00110011...` shift, March-C MBIST (`53` cycles), and `2:8` Compressed LOC (`MISR=0x0de0` slow / `0x52e6` typ / `0x6f97` fast) pass (`make test-sdf-gls`) |
 | `DBG-01` | Case Study 1: Async Reset Leak | Clear `rst_mask_en` & glitch `sys_rst_n` during `SCAN_SHIFT` | **PASS** — Reproduced `16/16` corrupted bits (`DBG01_RESET_LEAK`) → verified `rst_mask_en=1` (`0/64` errors) in slow SDF GLS |
-| `DBG-02` | Case Study 2: Scan Hold / Skew | `16x sg13g2_buf_4` skew across `Chain 0 -> Chain 1` (`fast_1p32V_m40C`) | **PASS** — Reproduced `-0.42 ns` hold slack & `32/64` fast-SDF bit slips → `sg13g2_dllrq_1` lockup latch closes to `+49.38 ns` & `0` slips (`make test-dbg-studies`) |
-| `DBG-03` | Case Study 3: MISR X-Corruption | Inject `1'bx` into `Chain 3` `_15758_` during compressed capture | **PASS** — Observed `MISR=0xXXxx` at `cyc=226` → pinpointed `ch3[42]` via `ate_fail_diag.py` → masked cleanly (`chain_x_mask=8'h08`, `MISR=0x586b`) |
+| `DBG-02` | Case Study 2: Scan Hold / Skew | `16x sg13g2_buf_4` skew across `Chain 0 -> Chain 1` (`fast_1p32V_m40C`) | **PASS** — Reproduced `-0.48 ns` hold slack & `32/64` fast-SDF bit slips → `sg13g2_dllrq_1` lockup latch closes to `+49.38 ns` boundary / `+0.20 ns` chip worst & `0` slips across 398 FFs (`make test-dbg-studies`) |
+| `DBG-03` | Case Study 3: MISR X-Corruption | Inject `1'bx` into `Chain 3` `_15211_` during compressed capture | **PASS** — Observed `MISR=0xXXxx` at `cyc=155` → pinpointed `ch3[42]` via `ate_fail_diag.py` → masked cleanly (`chain_x_mask=8'h08`, `MISR=0x0d5a`) |

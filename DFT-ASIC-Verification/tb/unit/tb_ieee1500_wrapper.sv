@@ -26,6 +26,25 @@ module tb_ieee1500_wrapper;
     wire [3:0]  wir_out;
     wire        intest_active, extest_active;
 
+    wire [15:0] dcache_addr;
+    wire [31:0] dcache_wdata;
+    wire [3:0]  dcache_wstrb;
+    wire        dcache_rd;
+    wire        dcache_wr;
+    wire [31:0] dcache_rdata;
+
+    // Simple ideal zero-wait backing RAM for isolated core INTEST verification
+    reg [31:0] ideal_mem [0:63];
+    assign dcache_rdata = ideal_mem[dcache_addr[7:2]];
+
+    /* verilator lint_off SYNCASYNCNET */
+    always @(posedge clk) begin
+        if (dcache_wr) begin
+            ideal_mem[dcache_addr[7:2]] <= dcache_wdata;
+        end
+    end
+    /* verilator lint_on SYNCASYNCNET */
+
     ieee1500_wrapper #(.WBR_LEN(WBR_LEN)) dut (
         .wrck                (wrck),
         .wrst_n              (wrst_n),
@@ -53,12 +72,19 @@ module tb_ieee1500_wrapper;
     );
 
     rv32i_processor core_dut (
-        .clk      (clk),
-        .rst_n    (rst_n),
-        .prog_sel (core_prog_sel),
-        .x14      (core_x14),
-        .pc_obs   (core_pc_obs),
-        .alu_obs  (core_alu_obs)
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .prog_sel     (core_prog_sel),
+        .dcache_addr  (dcache_addr),
+        .dcache_wdata (dcache_wdata),
+        .dcache_wstrb (dcache_wstrb),
+        .dcache_rd    (dcache_rd),
+        .dcache_wr    (dcache_wr),
+        .dcache_rdata (dcache_rdata),
+        .dcache_stall (1'b0),
+        .x14          (core_x14),
+        .pc_obs       (core_pc_obs),
+        .alu_obs      (core_alu_obs)
     );
 
     initial clk = 1'b0;
@@ -110,8 +136,17 @@ module tb_ieee1500_wrapper;
 
     logic [WBR_LEN-1:0] wbr_in, wbr_out;
     logic               cap_bit;
+    integer             k;
 
     initial begin
+        for (k = 0; k < 64; k = k + 1) ideal_mem[k] = 32'd0;
+        ideal_mem[6'h00] = 32'd10;
+        ideal_mem[6'h08] = 32'd20;
+        ideal_mem[6'h10] = 32'd30;
+        ideal_mem[6'h18] = 32'd40;
+        ideal_mem[6'h03] = 32'd77;
+        ideal_mem[6'h05] = 32'd88;
+
         rst_n               = 1'b0;
         wrst_n              = 1'b0;
         wrst_sync           = 1'b0;
@@ -135,11 +170,10 @@ module tb_ieee1500_wrapper;
             $display("FAIL [WS_BYPASS pass-through]: sys_x14=%0d core_x14=%0d", sys_x14, core_x14);
             $fatal(1, "Assertion failed");
         end
-        // Shift 1 bit through WBY
         @(negedge wrck); select_wir = 1'b0; capture_wr = 1'b1; shift_wr = 1'b0;
         @(posedge wrck); #1;
         @(negedge wrck); capture_wr = 1'b0; shift_wr = 1'b1; wsi = 1'b1;
-        @(posedge wrck); #1; // captures 1 into WBY
+        @(posedge wrck); #1;
         if (wso !== 1'b1) begin
             $display("FAIL [WBY latency]: expected 1 after 1 shift, got %b", wso);
             $fatal(1, "Assertion failed");
@@ -153,7 +187,7 @@ module tb_ieee1500_wrapper;
             $fatal(1, "Assertion failed");
         end
 
-        // Preload WBR[0] = 1 (core_prog_sel = 1 -> Program 1) and reset core while in INTEST
+        // Preload WBR[0] = 1 (core_prog_sel = 1 -> Program 1 -> x14=1297) and reset core while in INTEST
         wbr_in = 97'd1;
         wsp_shift_wbr(wbr_in, wbr_out, 1'b1);
         if (core_prog_sel !== 1'b1) begin
@@ -161,17 +195,17 @@ module tb_ieee1500_wrapper;
             $fatal(1, "Assertion failed");
         end
         @(negedge clk); rst_n = 1'b0; repeat (3) @(posedge clk);
-        @(negedge clk); rst_n = 1'b1; repeat (30) @(posedge clk); #1;
+        @(negedge clk); rst_n = 1'b1; repeat (80) @(posedge clk); #1;
 
-        if (core_x14 !== 32'd12 || sys_x14 !== 32'd0) begin
+        if (core_x14 !== 32'd1297 || sys_x14 !== 32'd0) begin
             $display("FAIL [INTEST core exec/sys clamp]: core_x14=%0d sys_x14=%0d", core_x14, sys_x14);
             $fatal(1, "Assertion failed");
         end
 
-        // Capture core_x14=12 via WBR shift-out
+        // Capture core_x14=1297 via WBR shift-out
         wsp_shift_wbr(97'd1, wbr_out, 1'b0);
-        if (wbr_out[32:1] !== 32'd12) begin
-            $display("FAIL [INTEST capture]: expected WBR[32:1]=12, got %0d", wbr_out[32:1]);
+        if (wbr_out[32:1] !== 32'd1297) begin
+            $display("FAIL [INTEST capture]: expected WBR[32:1]=1297, got %0d", wbr_out[32:1]);
             $fatal(1, "Assertion failed");
         end
 
@@ -186,11 +220,10 @@ module tb_ieee1500_wrapper;
             $fatal(1, "Assertion failed");
         end
 
-        // Silence unused cap_bit warning
         cap_bit = core_prog_sel;
         if (cap_bit && 1'b0) $display("unused");
 
-        $display("PASS [IEEE 1500 Wrapper]: WBY, SAMPLE, INTEST isolation+capture, and EXTEST verified");
+        $display("PASS [IEEE 1500 Wrapper]: WBY, SAMPLE, INTEST isolation+capture (x14=1297), and EXTEST verified");
         $finish;
     end
 endmodule

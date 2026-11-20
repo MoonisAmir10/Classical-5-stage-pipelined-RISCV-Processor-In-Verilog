@@ -472,7 +472,7 @@ def write_reports(area: dict, power_rows: list[dict], hier_rows: list[dict], fpg
         )
     lines.extend([
         "",
-        f"- **CTS/ECO Physical Closure Delta**: `+{cts_delta_cells:,}` cells (`+{cts_delta_area:,.2f} um^2`), buffering `295` high-fanout/clock nets (`{post_top['buffers']:,}` buffer instances total) and upsizing `831` `_1 -> _2` combinational/mux cells.",
+        f"- **CTS/ECO Physical Closure Delta**: `+{cts_delta_cells:,}` cells (`+{cts_delta_area:,.2f} um^2`), `{post_top['buffers']:,}` buffer instances total in signoff netlist.",
         f"- **Total Signoff Standard-Cell Core Area**: **`{post_top['area_um2']:,.2f} um^2`** (`{post_top['area_um2'] / 1e6:.4f} mm^2`, **`{post_top['ge']:,} GE`**; sequential cells = `{post_top['seq_area_um2']:,.2f} um^2` / `{post_top['seq_pct']}`).",
         f"- **Total Area incl. Modeled 4x SRAM Macro Stubs**: `+{area['macro_area_um2']:,.2f} um^2` (`2x 4,800 um^2` Tag + `2x 9,600 um^2` Data stubs in `flow/sta/sram_sync_sp.lib`) = **`{post_top['total_with_macro_um2']:,.2f} um^2`** (`{post_top['total_with_macro_um2'] / 1e6:.4f} mm^2`).",
         "",
@@ -491,7 +491,7 @@ def write_reports(area: dict, power_rows: list[dict], hier_rows: list[dict], fpg
         "",
         "## 2. ASIC Power Summary (`OpenSTA 3.2.0` on Post-CTS Signoff Netlist)",
         "",
-        "> **Methodology Note**: Static probabilistic power computed on `soc_dft_top_sta.v` at global toggle activity `0.1` transitions/cycle referenced to each mode's active clock (`100 MHz` `sys_clk` for `func` & `scan_capture`; `10 MHz` `tck` via `-density 0.001` for `scan_shift`, plus unscaled `-activity 0.1` shown for reference) and duty `0.5`. Power covers all **`15,886`** `IHP SG13G2` standard cells; the `4x sram_sync_sp` Liberty stubs model timing/area without array `internal_power()` tables (`Macro = 0.00 mW`).",
+        f"> **Methodology Note**: Static probabilistic power computed on `soc_dft_top_sta.v` at global toggle activity `0.1` transitions/cycle referenced to each mode's active clock (`100 MHz` `sys_clk` for `func` & `scan_capture`; `10 MHz` `tck` via `-density 0.001` for `scan_shift`, plus unscaled `-activity 0.1` shown for reference) and duty `0.5`. Power covers all **`{post_top['stdcells']:,}`** `IHP SG13G2` standard cells; the `4x sram_sync_sp` Liberty stubs model timing/area without array `internal_power()` tables (`Macro = 0.00 mW`).",
         "",
         "| Mode | PVT Corner | Clock (`MHz`) | Sequential (`mW`) | Combinational (`mW`) | Clock Net (`mW`) | Leakage (`uW`) | **Total Power (`mW`)** |",
         "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
@@ -533,7 +533,7 @@ def write_reports(area: dict, power_rows: list[dict], hier_rows: list[dict], fpg
         lines.append(
             f"| **Logic Resources / Area** | `{VIVADO_BASELINE['luts']}` LUTs, `{VIVADO_BASELINE['ffs']}` FFs (`< 1%`) | "
             f"`{sd['luts_incl_inv']:,}` LUTs, `{sd['ffs']:,}` FFs (`soc_func`: `{sf['luts_incl_inv']:,}` LUTs / `{sf['ffs']:,}` FFs) | "
-            f"**`{post_top['area_um2']:,.2f} um^2`** (`0.2982 mm^2` stdcell = `{post_top['ge']:,} GE`, `{post_top['stdcells']:,}` cells, `{post_top['dffs']:,}` FFs) |"
+            f"**`{post_top['area_um2']:,.2f} um^2`** (`{post_top['area_um2'] / 1e6:.4f} mm^2` stdcell = `{post_top['ge']:,} GE`, `{post_top['stdcells']:,}` cells, `{post_top['dffs']:,}` FFs) |"
         )
         lines.append(
             f"| **Memory Blocks** | `{VIVADO_BASELINE['bram']} BRAM` (Distributed RAM) | `{sd['dist_ram32m']} RAM32M`, `{sd['brams']} BRAM` | `4x sram_sync_sp` (`2x 8x14b` Tag + `2x 8x32b` Data = `{area['macro_area_um2']:,.0f} um^2` stub) |"
@@ -541,15 +541,15 @@ def write_reports(area: dict, power_rows: list[dict], hier_rows: list[dict], fpg
     else:
         lines.append(
             f"| **Logic Resources / Area** | `{VIVADO_BASELINE['luts']}` LUTs, `{VIVADO_BASELINE['ffs']}` FFs (`< 1%`) | Re-run with `--run-xilinx` | "
-            f"**`{post_top['area_um2']:,.2f} um^2`** (`0.2982 mm^2` stdcell = `{post_top['ge']:,} GE`, `{post_top['stdcells']:,}` cells, `{post_top['dffs']:,}` FFs) |"
+            f"**`{post_top['area_um2']:,.2f} um^2`** (`{post_top['area_um2'] / 1e6:.4f} mm^2` stdcell = `{post_top['ge']:,} GE`, `{post_top['stdcells']:,}` cells, `{post_top['dffs']:,}` FFs) |"
         )
     lines.extend([
         f"| **Timing Closure (Setup / Hold)** | `{VIVADO_BASELINE['fmax_mhz']:.2f} MHz` Vivado signoff | N/A | **9/9 Modes×Corners PASS** (`slow`: `+{float(sta_func_slow['worst_slack_setup_ns']):.2f} ns` / `+{float(sta_func_slow['worst_slack_hold_ns']):.2f} ns`) |",
         f"| **Core Power (`OpenSTA`)** | N/A (not extracted in Vivado) | N/A | **`{func_typ['total_mw']:.2f} mW`** (`func 100 MHz typ`), **`{shift_typ['total_mw']:.2f} mW`** (`scan_shift 10 MHz typ`), **`{func_fast['total_mw']:.2f} mW`** (`fast`) |",
         f"| **Leakage Power (`stdcells`)** | N/A | N/A | `{func_typ['leakage_uw']:.2f} uW` (`25°C typ`) / `{func_slow['leakage_uw']:.2f} uW` (`125°C slow`) |",
-        f"| **DFT Capabilities** | None (Functional Core only) | Full JTAG / 1500 / MBIST / OCC / Comp | **99.983% / 97.163% SA FC**, `4x` Comp (`{comp_row['pattern_count']}` vec), Hybrid `{hyb_row['pattern_count']}` vec (`8.77x` data red.), 3-corner SDF GLS |",
+        f"| **DFT Capabilities** | None (Functional Core only) | Full JTAG / 1500 / MBIST / OCC / Comp | **{float(hyb_row['fc_all_po_pct']):.3f}% / {float(comp_row['fc_scan_out_pct']):.3f}% SA FC**, `4x` Comp (`{comp_row['pattern_count']}` vec), Hybrid `{hyb_row['pattern_count']}` vec (`{float(hyb_row['ate_data_comp_ratio']):.2f}x` data red.), 3-corner SDF GLS |",
         "",
-        "> **Why Vivado Baseline (`534 LUTs / 625 FFs`) vs. Yosys (`soc_func_logic`) Differ**: In the standalone Vivado Artix-7 synthesis of the baseline core, Vivado inferred Distributed `LUTRAM` for the register file / data memory and pruned unobserved debug outputs. In the ASIC scan-ready flow (`soc_func_logic`), the `32x32` regfile and `16x32` scratchpad are explicitly synthesized into `2,151` scan-stitchable `sg13g2_dfrbpq_1` flip-flops alongside `100%` of IEEE 1500 / MBIST / JTAG / OCC / compactor DFT hardware.",
+        f"> **Why Vivado Baseline (`534 LUTs / 625 FFs`) vs. Yosys (`soc_func_logic`) Differ**: In the standalone Vivado Artix-7 synthesis of the baseline core, Vivado inferred Distributed `LUTRAM` for the register file and pruned unobserved debug outputs. In the ASIC scan-ready flow (`soc_func_logic`), the `32x32` register file, 5-stage pipeline, and integrated 32-bit 2-way D-cache controller are explicitly synthesized into `{area['soc_func_noscan']['dffs']:,}` scan-stitchable `sg13g2_dfrbpq_1` flip-flops backed by `4x sram_sync_sp` SRAM macros alongside `100%` of IEEE 1500 / MBIST / JTAG / OCC / compactor DFT hardware.",
         "",
         "## 4. Extracted ASIC Schematics",
         "",

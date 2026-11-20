@@ -2,8 +2,9 @@
 
 // Top-Level DFT-Enabled RISC-V SoC Subsystem
 // Integrates:
-//   - rv32i_processor (wrapped by IEEE 1500 Core Test Wrapper)
-//   - cache_2wsa_dft + 4x sram_sync_sp (with March-C MBIST controller)
+//   - rv32i_processor (wrapped by IEEE 1500 Core Test Wrapper) directly wired
+//     to the 32-bit 2-way set-associative D-cache (cache_2wsa_dft + 4x sram_sync_sp)
+//   - March-C / Checkerboard MBIST controller across all 4 cache SRAM banks
 //   - IEEE 1149.1 JTAG TAP Controller & Custom TDRs
 //   - Glitch-Free OCC Clock & Async Reset Controller
 //   - 2:8 Scan Compression & 16-bit X-Masked MISR Wrapper
@@ -38,22 +39,17 @@ module soc_dft_top #(
     output logic [31:0] pc_obs,
     output logic [31:0] alu_obs,
 
-    // Functional 2-way cache CPU & Main-Memory unidirectional interfaces
-    input  logic [7:0]  cache_cpu_wdata,
-    output logic [7:0]  cache_cpu_rdata,
-    output logic        cache_cpu_rdata_oe,
-    input  logic [15:0] cache_addr_cpu,
-    input  logic        cache_rd_cpu,
-    input  logic        cache_wr_cpu,
-    output logic        cache_stall_cpu,
-
-    input  logic [7:0]  cache_mem_rdata,
-    output logic [7:0]  cache_mem_wdata,
-    output logic        cache_mem_wdata_oe,
+    // Off-chip 32-bit Main-Memory master interface & D-cache observability
+    input  logic [31:0] cache_mem_rdata,
+    output logic [31:0] cache_mem_wdata,
     output logic [15:0] cache_addr_mem,
     output logic        cache_rd_mem,
     output logic        cache_wr_mem,
-    input  logic        cache_ready_mem
+    input  logic        cache_ready_mem,
+    output logic        cache_stall_cpu,
+    output logic        cache_hit,
+    output logic        cache_miss,
+    output logic        cache_wb
 `ifndef SYNTHESIS
     ,
     // Simulation-only SRAM fault injection interface
@@ -185,7 +181,7 @@ module soc_dft_top #(
     );
 
 `ifdef POST_SCAN_STITCH
-    // Stitched gate-level core+cache logic (2,151 FFs across 8 chains) + 4 SRAM banks
+    // Stitched gate-level integrated RV32I + 2-way cache controller + 4 SRAM banks
     wire [2:0]  sram_index;
     wire [13:0] sram_wtag0, sram_wtag1, sram_rtag0, sram_rtag1;
     wire        sram_wet0, sram_wet1, sram_we0, sram_we1;
@@ -203,20 +199,16 @@ module soc_dft_top #(
         .x14                (core_x14),
         .pc_obs             (core_pc_obs),
         .alu_obs            (core_alu_obs),
-        .cache_cpu_wdata    (cache_cpu_wdata),
-        .cache_cpu_rdata    (cache_cpu_rdata),
-        .cache_cpu_rdata_oe (cache_cpu_rdata_oe),
-        .cache_addr_cpu     (cache_addr_cpu),
-        .cache_rd_cpu       (cache_rd_cpu),
-        .cache_wr_cpu       (cache_wr_cpu),
-        .cache_stall_cpu    (cache_stall_cpu),
         .cache_mem_rdata    (cache_mem_rdata),
         .cache_mem_wdata    (cache_mem_wdata),
-        .cache_mem_wdata_oe (cache_mem_wdata_oe),
         .cache_addr_mem     (cache_addr_mem),
         .cache_rd_mem       (cache_rd_mem),
         .cache_wr_mem       (cache_wr_mem),
         .cache_ready_mem    (cache_ready_mem),
+        .cache_stall_cpu    (cache_stall_cpu),
+        .cache_hit          (cache_hit),
+        .cache_miss         (cache_miss),
+        .cache_wb           (cache_wb),
         .bist_en            (bist_en),
         .bist_bank_sel      (bist_bank_sel),
         .bist_addr          (bist_addr),
@@ -316,34 +308,51 @@ module soc_dft_top #(
 `endif
     );
 `else
+    // Internal RV32I MEM-stage <-> 2-Way D-Cache bus
+    logic [15:0] cpu_dcache_addr;
+    logic [31:0] cpu_dcache_wdata;
+    logic [3:0]  cpu_dcache_wstrb;
+    logic        cpu_dcache_rd;
+    logic        cpu_dcache_wr;
+    logic [31:0] cpu_dcache_rdata;
+
     // 5-Stage Pipelined RV32I Core
     rv32i_processor u_rv32i_core (
-        .clk      (occ_clk),
-        .rst_n    (dft_rst_n),
-        .prog_sel (core_prog_sel),
-        .x14      (core_x14),
-        .pc_obs   (core_pc_obs),
-        .alu_obs  (core_alu_obs)
+        .clk          (occ_clk),
+        .rst_n        (dft_rst_n),
+        .prog_sel     (core_prog_sel),
+        .dcache_addr  (cpu_dcache_addr),
+        .dcache_wdata (cpu_dcache_wdata),
+        .dcache_wstrb (cpu_dcache_wstrb),
+        .dcache_rd    (cpu_dcache_rd),
+        .dcache_wr    (cpu_dcache_wr),
+        .dcache_rdata (cpu_dcache_rdata),
+        .dcache_stall (cache_stall_cpu),
+        .x14          (core_x14),
+        .pc_obs       (core_pc_obs),
+        .alu_obs      (core_alu_obs)
     );
 
-    // 2-Way Set-Associative Cache + 4 SRAM Banks
+    // Integrated 32-bit 2-Way Set-Associative D-Cache + 4 SRAM Banks
     cache_2wsa_dft u_cache (
         .clock         (occ_clk),
         .reset_n       (dft_rst_n),
-        .cpu_wdata     (cache_cpu_wdata),
-        .cpu_rdata     (cache_cpu_rdata),
-        .cpu_rdata_oe  (cache_cpu_rdata_oe),
-        .addr_cpu      (cache_addr_cpu),
-        .rd_cpu        (cache_rd_cpu),
-        .wr_cpu        (cache_wr_cpu),
+        .addr_cpu      (cpu_dcache_addr),
+        .cpu_wdata     (cpu_dcache_wdata),
+        .cpu_wstrb     (cpu_dcache_wstrb),
+        .rd_cpu        (cpu_dcache_rd),
+        .wr_cpu        (cpu_dcache_wr),
+        .cpu_rdata     (cpu_dcache_rdata),
         .stall_cpu     (cache_stall_cpu),
-        .mem_rdata     (cache_mem_rdata),
-        .mem_wdata     (cache_mem_wdata),
-        .mem_wdata_oe  (cache_mem_wdata_oe),
         .addr_mem      (cache_addr_mem),
+        .mem_wdata     (cache_mem_wdata),
+        .mem_rdata     (cache_mem_rdata),
         .rd_mem        (cache_rd_mem),
         .wr_mem        (cache_wr_mem),
         .ready_mem     (cache_ready_mem),
+        .cache_hit     (cache_hit),
+        .cache_miss    (cache_miss),
+        .cache_wb      (cache_wb),
         .bist_en       (bist_en),
         .bist_bank_sel (bist_bank_sel),
         .bist_addr     (bist_addr),
@@ -403,7 +412,6 @@ module soc_dft_top #(
 `ifndef POST_SCAN_STITCH
     // Pre-stitch RTL observation/surrogate scan chains (USE_EXT_SCAN_CHAINS=0):
     // 8 x 8-bit shift/capture segments observing live core & cache state.
-    // Under POST_SCAN_STITCH, real gate-level scan chains drive chain_scan_out directly.
     generate
         if (USE_EXT_SCAN_CHAINS == 0) begin : g_rtl_scan_chains
             logic [7:0] sc_seg_q [0:7];

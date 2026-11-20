@@ -1,33 +1,29 @@
 `timescale 1ns/1ps
 
-// Pure standard-cell functional SoC logic (rv32i_processor + cache_ctrl_logic)
-// with exposed SRAM macro ports. Target module for ATPG cut and N-chain scan stitching.
+// Pure standard-cell functional SoC logic integrating the 5-stage RV32I core
+// directly with the 32-bit 2-way set-associative D-cache controller, with
+// exposed SRAM macro ports for ATPG cut, N-chain scan stitching, and MBIST.
 module soc_func_logic (
     input  wire        clk,
     input  wire        rst_n,
 
-    // RV32I processor interface
+    // RV32I processor interface (IEEE 1500 wrapped)
     input  wire        prog_sel,
     output wire [31:0] x14,
     output wire [31:0] pc_obs,
     output wire [31:0] alu_obs,
 
-    // Cache CPU & Main-Memory interfaces
-    input  wire [7:0]  cache_cpu_wdata,
-    output wire [7:0]  cache_cpu_rdata,
-    output wire        cache_cpu_rdata_oe,
-    input  wire [15:0] cache_addr_cpu,
-    input  wire        cache_rd_cpu,
-    input  wire        cache_wr_cpu,
-    output wire        cache_stall_cpu,
-
-    input  wire [7:0]  cache_mem_rdata,
-    output wire [7:0]  cache_mem_wdata,
-    output wire        cache_mem_wdata_oe,
+    // External 32-bit Main-Memory master bus & D-cache status
+    input  wire [31:0] cache_mem_rdata,
+    output wire [31:0] cache_mem_wdata,
     output wire [15:0] cache_addr_mem,
     output wire        cache_rd_mem,
     output wire        cache_wr_mem,
     input  wire        cache_ready_mem,
+    output wire        cache_stall_cpu,
+    output wire        cache_hit,
+    output wire        cache_miss,
+    output wire        cache_wb,
 
     // MBIST bus
     input  wire        bist_en,
@@ -64,33 +60,52 @@ module soc_func_logic (
     input  wire [31:0] sram_bist_dout_d0,
     input  wire [31:0] sram_bist_dout_d1
 );
+    // Internal RV32I MEM-stage <-> 2-Way D-Cache bus
+    wire [15:0] cpu_dcache_addr;
+    wire [31:0] cpu_dcache_wdata;
+    wire [3:0]  cpu_dcache_wstrb;
+    wire        cpu_dcache_rd;
+    wire        cpu_dcache_wr;
+    wire [31:0] cpu_dcache_rdata;
+    wire        cpu_dcache_stall;
+
+    assign cache_stall_cpu = cpu_dcache_stall;
 
     rv32i_processor u_rv32i_core (
-        .clk      (clk),
-        .rst_n    (rst_n),
-        .prog_sel (prog_sel),
-        .x14      (x14),
-        .pc_obs   (pc_obs),
-        .alu_obs  (alu_obs)
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .prog_sel     (prog_sel),
+        .dcache_addr  (cpu_dcache_addr),
+        .dcache_wdata (cpu_dcache_wdata),
+        .dcache_wstrb (cpu_dcache_wstrb),
+        .dcache_rd    (cpu_dcache_rd),
+        .dcache_wr    (cpu_dcache_wr),
+        .dcache_rdata (cpu_dcache_rdata),
+        .dcache_stall (cpu_dcache_stall),
+        .x14          (x14),
+        .pc_obs       (pc_obs),
+        .alu_obs      (alu_obs)
     );
 
     cache_ctrl_logic u_cache_ctrl (
         .clock              (clk),
         .reset_n            (rst_n),
-        .cpu_wdata          (cache_cpu_wdata),
-        .cpu_rdata          (cache_cpu_rdata),
-        .cpu_rdata_oe       (cache_cpu_rdata_oe),
-        .addr_cpu           (cache_addr_cpu),
-        .rd_cpu             (cache_rd_cpu),
-        .wr_cpu             (cache_wr_cpu),
-        .stall_cpu          (cache_stall_cpu),
-        .mem_rdata          (cache_mem_rdata),
-        .mem_wdata          (cache_mem_wdata),
-        .mem_wdata_oe       (cache_mem_wdata_oe),
+        .addr_cpu           (cpu_dcache_addr),
+        .cpu_wdata          (cpu_dcache_wdata),
+        .cpu_wstrb          (cpu_dcache_wstrb),
+        .rd_cpu             (cpu_dcache_rd),
+        .wr_cpu             (cpu_dcache_wr),
+        .cpu_rdata          (cpu_dcache_rdata),
+        .stall_cpu          (cpu_dcache_stall),
         .addr_mem           (cache_addr_mem),
+        .mem_wdata          (cache_mem_wdata),
+        .mem_rdata          (cache_mem_rdata),
         .rd_mem             (cache_rd_mem),
         .wr_mem             (cache_wr_mem),
         .ready_mem          (cache_ready_mem),
+        .cache_hit          (cache_hit),
+        .cache_miss         (cache_miss),
+        .cache_wb           (cache_wb),
         .bist_en            (bist_en),
         .bist_bank_sel      (bist_bank_sel),
         .bist_addr          (bist_addr),

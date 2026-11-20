@@ -5,9 +5,9 @@
 // skewed boundary (`16x sg13g2_buf_4` clock delay onto Chain 1 head `_15178_`).
 //   - Without lockup latch (`+EXPECT_HOLD_FAIL`): shoot-through bit slip corrupts stream.
 //   - With negative-edge `sg13g2_dllrq_1` lockup latch: 0 mismatches across 538 FFs.
-module tb_dbg02_skew_hold;
-
-    localparam integer CHAIN_PAIR_LEN = 538; // 269 (Ch0) + 269 (Ch1)
+module tb_dbg02_skew_hold #(
+    parameter integer CHAIN_PAIR_LEN = 400
+);
 
     reg clk;
     reg rst_n;
@@ -81,7 +81,7 @@ module tb_dbg02_skew_hold;
                 $display("FAIL [DBG-02 Lockup Fixed]: %0d shift mismatches remain!", mismatch_cnt);
                 $fatal(1);
             end
-            $display("PASS [DBG-02 Lockup Fixed]: 0 mismatches across 538 skewed scan FFs with sg13g2_dllrq_1 lockup latch!");
+            $display("PASS [DBG-02 Lockup Fixed]: 0 mismatches across %0d skewed scan FFs with sg13g2_dllrq_1 lockup latch!", CHAIN_PAIR_LEN);
         end
         $finish;
     end

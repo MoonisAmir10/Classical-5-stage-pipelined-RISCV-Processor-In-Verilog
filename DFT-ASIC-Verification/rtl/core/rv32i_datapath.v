@@ -15,7 +15,11 @@ module rv32i_datapath (
     input  wire        asel,
     input  wire [1:0]  ForwardAE,
     input  wire [1:0]  ForwardBE,
+    input  wire        en_E,
+    input  wire        en_M,
+    input  wire        en_W,
     input  wire        flushE,
+    input  wire        dm_read_en,
     input  wire        dm_write_en,
     input  wire [1:0]  wbsel,
     input  wire [31:0] pc,
@@ -23,7 +27,16 @@ module rv32i_datapath (
     output wire        breq_flag,
     output wire        brlt_flag,
     output wire        bge_flag,
+    output wire [31:0] alu_EX,
     output wire [31:0] alu_MEM,
+    // Integrated 32-bit 2-way D-cache CPU master bus
+    output wire [15:0] dcache_addr,
+    output wire [31:0] dcache_wdata,
+    output wire [3:0]  dcache_wstrb,
+    output wire        dcache_rd,
+    output wire        dcache_wr,
+    input  wire [31:0] dcache_rdata,
+    input  wire        dcache_stall,
     output wire [31:0] x14
 );
     wire [31:0] read_data1;
@@ -32,7 +45,6 @@ module rv32i_datapath (
     wire [31:0] read_imm_data2;
     wire [31:0] read_data2;
     wire [31:0] write_data;
-    wire [31:0] dm_out;
     wire [31:0] alu_out;
     wire [31:0] inp1_fwd_out;
     wire [31:0] inp2_fwd_out;
@@ -43,46 +55,54 @@ module rv32i_datapath (
     wire [31:0] alu_WB;
     wire [31:0] dm_WB;
 
+    assign alu_EX       = alu_out;
+    assign dcache_addr  = alu_MEM[15:0];
+    assign dcache_wdata = rs2_MEM;
+    assign dcache_wstrb = 4'b1111;
+    assign dcache_rd    = dm_read_en;
+    assign dcache_wr    = dm_write_en;
+
     rv32i_reg_pl #(.N(32)) pc_DE (
-        .inp(pc), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(flushE), .out(pc_EX)
+        .inp(pc), .clk(clk), .rst_n(rst_n), .en(en_E), .clear(flushE), .out(pc_EX)
     );
     rv32i_reg_pl #(.N(32)) pc_E_MEM (
-        .inp(pc_EX), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(1'b0), .out(pc_MEM)
+        .inp(pc_EX), .clk(clk), .rst_n(rst_n), .en(en_M), .clear(1'b0), .out(pc_MEM)
     );
     assign pc_MEM_plus4 = pc_MEM + 32'd4;
     rv32i_reg_pl #(.N(32)) pc_MEM_WB (
-        .inp(pc_MEM_plus4), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(1'b0), .out(pc_WB)
+        .inp(pc_MEM_plus4), .clk(clk), .rst_n(rst_n), .en(en_W), .clear(1'b0), .out(pc_WB)
     );
 
     rv32i_reg_pl #(.N(32)) rs1_DE (
-        .inp(read_reg_data1), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(flushE), .out(rs1_EX)
+        .inp(read_reg_data1), .clk(clk), .rst_n(rst_n), .en(en_E), .clear(flushE), .out(rs1_EX)
     );
     rv32i_reg_pl #(.N(32)) rs2_DE (
-        .inp(read_reg_data2), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(flushE), .out(rs2_EX)
+        .inp(read_reg_data2), .clk(clk), .rst_n(rst_n), .en(en_E), .clear(flushE), .out(rs2_EX)
     );
+    // Capture FORWARDED inp2_fwd_out so SW gets EX/MEM and MEM/WB forwarded data
     rv32i_reg_pl #(.N(32)) rs2_E_MEM (
-        .inp(rs2_EX), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(1'b0), .out(rs2_MEM)
+        .inp(inp2_fwd_out), .clk(clk), .rst_n(rst_n), .en(en_M), .clear(1'b0), .out(rs2_MEM)
     );
 
     rv32i_reg_pl #(.N(32)) imm_DE (
-        .inp(read_imm_data2), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(flushE), .out(imm_EX)
+        .inp(read_imm_data2), .clk(clk), .rst_n(rst_n), .en(en_E), .clear(flushE), .out(imm_EX)
     );
 
     rv32i_reg_pl #(.N(32)) alu_E_MEM (
-        .inp(alu_out), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(1'b0), .out(alu_MEM)
+        .inp(alu_out), .clk(clk), .rst_n(rst_n), .en(en_M), .clear(1'b0), .out(alu_MEM)
     );
     rv32i_reg_pl #(.N(32)) alu_MEM_WB (
-        .inp(alu_MEM), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(1'b0), .out(alu_WB)
+        .inp(alu_MEM), .clk(clk), .rst_n(rst_n), .en(en_W), .clear(1'b0), .out(alu_WB)
     );
 
     rv32i_reg_pl #(.N(32)) dm_MEM_WB (
-        .inp(dm_out), .clk(clk), .rst_n(rst_n), .en(1'b1), .clear(1'b0), .out(dm_WB)
+        .inp(dcache_rdata), .clk(clk), .rst_n(rst_n), .en(en_W), .clear(1'b0), .out(dm_WB)
     );
 
     rv32i_regfile regfile_inst (
         .clk(clk),
         .rst_n(rst_n),
-        .reg_write_en(reg_write_en),
+        .reg_write_en(reg_write_en && !dcache_stall),
         .reg_write_dest_addr(reg_write_dest),
         .reg_write_data(write_data),
         .reg_read_addr_rs1(read_reg_r1),
@@ -127,15 +147,6 @@ module rv32i_datapath (
         .inp2(read_data2),
         .alu_select(alu_select),
         .alu_out(alu_out)
-    );
-
-    rv32i_data_mem #(.AWIDTH(4)) RAM_inst (
-        .clk(clk),
-        .rst_n(rst_n),
-        .dm_read_addr(alu_MEM),
-        .dm_write_data_rs2(rs2_MEM),
-        .dm_write_en(dm_write_en),
-        .dm_read_data(dm_out)
     );
 
     rv32i_wb_mux wb_mux_inst (

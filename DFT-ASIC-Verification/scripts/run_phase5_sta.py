@@ -19,6 +19,7 @@ Outputs:
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
 import subprocess
@@ -220,11 +221,11 @@ def run_sta_check(
     }
 
 
-def build_dbg02_variants(scan8_cts_sim_v: Path) -> tuple[Path, Path]:
+def build_dbg02_variants(scan8_cts_sim_v: Path, ch0_tail_inst: str, ch1_head_inst: str) -> tuple[Path, Path]:
     """Generate DBG-02 inter-clock skew netlists directly around stitched Chain 0 -> Chain 1.
 
-    Uses Chain 0 (FFs _14909_.._15177_ on `clk`) and Chain 1 head (_15178_ on skewed `clk_dom1`
-    delayed via 10x `sg13g2_buf_4`), comparing:
+    Uses Chain 0 tail FF on `clk` and Chain 1 head FF (`ch1_head_inst`) on skewed
+    `clk_dom1` delayed via 16x `sg13g2_buf_4`, comparing:
       - `dbg02_buggy`: direct skewed transfer `scan_out[0] -> scan_in[1]` (negative hold)
       - `dbg02_fixed`: negative-edge `sg13g2_dllrq_1` lockup latch isolating `clk -> clk_dom1`
     """
@@ -235,8 +236,7 @@ def build_dbg02_variants(scan8_cts_sim_v: Path) -> tuple[Path, Path]:
         raise RuntimeError("soc_func_logic not found in CTS netlist")
     func_mod = sim_txt[idx_func:]
 
-    # Put Chain 1 head FF (_15178_) onto skewed clock `_dbg02_clk_skew_` (16x sg13g2_buf_4)
-    # driving `_15178_.CLK` instead of the nominal CTS leaf clock.
+    # Put Chain 1 head FF onto skewed clock `_dbg02_clk_skew_` (16x sg13g2_buf_4)
     n_skew = 16
     skew_wires = ["  wire _dbg02_clk_skew_;"] + [f"  wire _dbg02_skw_{k}_;" for k in range(n_skew - 1)]
     skew_cells = []
@@ -251,13 +251,13 @@ def build_dbg02_variants(scan8_cts_sim_v: Path) -> tuple[Path, Path]:
         )
         prev_clk = nxt_clk
 
-    def patch_15178_clk(m: re.Match[str]) -> str:
-        if m.group("inst") != "_15178_":
+    def patch_head_clk(m: re.Match[str]) -> str:
+        if m.group("inst") != ch1_head_inst:
             return m.group(0)
         body = re.sub(r"\.CLK\s*\([^)]*\)", ".CLK(_dbg02_clk_skew_)", m.group("body"), count=1)
         return f"{m.group('indent')}{m.group('cell')} {m.group('inst')} ({body});"
 
-    skewed_func = CELL_RE.sub(patch_15178_clk, func_mod)
+    skewed_func = CELL_RE.sub(patch_head_clk, func_mod)
     first_cell = CELL_RE.search(skewed_func)
     skewed_func = (
         skewed_func[: first_cell.start()]
@@ -275,20 +275,18 @@ def build_dbg02_variants(scan8_cts_sim_v: Path) -> tuple[Path, Path]:
         "  output scan_out_ch1;\n"
         "  wire [7:0] sc_out;\n"
         "  wire hop_net;\n"
-        "  wire [31:0] dummy_x14, dummy_pc, dummy_alu, dummy_cwrdata, dummy_bistdout, dummy_swdata, dummy_sbistd;\n"
+        "  wire [31:0] dummy_x14, dummy_pc, dummy_alu, dummy_cmwdata, dummy_bistdout, dummy_swdata, dummy_sbistd;\n"
         "  wire [15:0] dummy_caddrm;\n"
         "  wire [13:0] dummy_swtag0, dummy_swtag1, dummy_sbistt;\n"
-        "  wire [7:0] dummy_crdata, dummy_cmwdata;\n"
         "  wire [2:0] dummy_sidx, dummy_sbista;\n"
     )
     inst_core = (
         "  soc_func_logic u_core (\n"
         "    .clk(clk), .rst_n(rst_n), .prog_sel(1'b0),\n"
         "    .x14(dummy_x14), .pc_obs(dummy_pc), .alu_obs(dummy_alu),\n"
-        "    .cache_cpu_wdata(8'd0), .cache_cpu_rdata(dummy_crdata), .cache_cpu_rdata_oe(),\n"
-        "    .cache_addr_cpu(16'd0), .cache_rd_cpu(1'b0), .cache_wr_cpu(1'b0), .cache_stall_cpu(),\n"
-        "    .cache_mem_rdata(8'd0), .cache_mem_wdata(dummy_cmwdata), .cache_mem_wdata_oe(),\n"
+        "    .cache_mem_rdata(32'd0), .cache_mem_wdata(dummy_cmwdata),\n"
         "    .cache_addr_mem(dummy_caddrm), .cache_rd_mem(), .cache_wr_mem(), .cache_ready_mem(1'b0),\n"
+        "    .cache_stall_cpu(), .cache_hit(), .cache_miss(), .cache_wb(),\n"
         "    .bist_en(1'b0), .bist_bank_sel(2'd0), .bist_addr(3'd0), .bist_din(32'd0), .bist_we(1'b0),\n"
         "    .bist_dout(dummy_bistdout), .sram_index(dummy_sidx), .sram_wtag0(dummy_swtag0),\n"
         "    .sram_wtag1(dummy_swtag1), .sram_wet0(), .sram_wet1(), .sram_wdata(dummy_swdata),\n"
@@ -380,7 +378,11 @@ def main() -> None:
                 raise RuntimeError(f"STA closure failed for {mode} @ {corner}: {row}")
 
     print("[Phase 5] 4/4 Running DBG-02 inter-clock skew STA & SDF generation (fast corner)...")
-    buggy_v, fixed_v = build_dbg02_variants(cts_sim_v)
+    scan8_meta = json.loads((BUILD4 / "scan8.json").read_text(encoding="utf-8"))
+    ch0_tail_inst = scan8_meta["chains"][0][-1]["inst_name"]
+    ch1_head_inst = scan8_meta["chains"][1][0]["inst_name"]
+    ch1_mux_idx = scan8_meta["chain_lengths"][0]
+    buggy_v, fixed_v = build_dbg02_variants(cts_sim_v, ch0_tail_inst, ch1_head_inst)
     dbg_sdc = BUILD5 / "dbg02_shift.sdc"
     dbg_sdc.write_text(
         "create_clock -name clk -period 100.0 [get_ports clk]\n"
@@ -401,9 +403,9 @@ def main() -> None:
             CORNERS["fast"],
             dbg_sdc,
             sdf_out=raw_d_sdf,
-            extra_tcl='puts "=== BOUNDARY_HOLD ==="\nreport_checks -to u_core/_15178_ -path_delay min -format summary',
+            extra_tcl=f'puts "=== BOUNDARY_HOLD ==="\nreport_checks -to u_core/{ch1_head_inst} -path_delay min -format summary',
         )
-        m_bh = re.search(r"=== BOUNDARY_HOLD ===.*?_15178_/D\s+\([^)]+\)\s+(-?\d+\.\d+)", res_d["raw_out"], re.S)
+        m_bh = re.search(rf"=== BOUNDARY_HOLD ===.*?{re.escape(ch1_head_inst)}/D\s+\([^)]+\)\s+(-?\d+\.\d+)", res_d["raw_out"], re.S)
         res_d["boundary_hold"] = float(m_bh.group(1)) if m_bh else res_d["worst_slack_hold"]
         clean_sdf_for_icarus(raw_d_sdf, BUILD5 / f"{label}_fast.sdf", skip_celltype="dbg02_dut")
         dbg_results[label] = res_d
@@ -440,7 +442,7 @@ def main() -> None:
         "",
         "## Inter-Domain Scan Skew Hold Closure (`DBG-02`, Propagated Fast Corner `1.32V / -40C`)",
         "",
-        f"- **Without Lockup Latch (`dbg02_buggy`)**: Inter-domain Hold Slack = **`{b_hold:.2f} ns`** (`VIOLATED`, `TNS = {dbg_results['dbg02_buggy']['tns_hold']:.2f} ns`) — `_15177_ -> _scan_mux_269_ -> _15178_` shoots through when `clk_dom1` arrives after `16x sg13g2_buf_4` skew.",
+        f"- **Without Lockup Latch (`dbg02_buggy`)**: Inter-domain Hold Slack = **`{b_hold:.2f} ns`** (`VIOLATED`, `TNS = {dbg_results['dbg02_buggy']['tns_hold']:.2f} ns`) — `{ch0_tail_inst} -> _scan_mux_{ch1_mux_idx}_ -> {ch1_head_inst}` shoots through when `clk_dom1` arrives after `16x sg13g2_buf_4` skew.",
         f"- **With Negative-Edge Lockup Latch (`dbg02_fixed`, `sg13g2_dllrq_1`)**: Inter-domain Hold Slack = **`+{f_hold:.2f} ns`** (`MET`, chip-wide `worst_hold = +{dbg_results['dbg02_fixed']['worst_slack_hold']:.2f} ns`, `TNS = {dbg_results['dbg02_fixed']['tns_hold']:.2f} ns`) — half-cycle hold protection isolates inter-clock skew cleanly.",
         "",
     ])

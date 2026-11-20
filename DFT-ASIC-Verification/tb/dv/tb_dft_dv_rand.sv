@@ -24,19 +24,13 @@ module tb_dft_dv_rand;
     logic        prog_sel;
     logic [31:0] x14, pc_obs, alu_obs;
 
-    logic [7:0]  cache_cpu_wdata;
-    logic [7:0]  cache_cpu_rdata;
-    logic        cache_cpu_rdata_oe;
-    logic [15:0] cache_addr_cpu;
-    logic        cache_rd_cpu, cache_wr_cpu;
-    logic        cache_stall_cpu;
-
-    logic [7:0]  cache_mem_rdata;
-    logic [7:0]  cache_mem_wdata;
-    logic        cache_mem_wdata_oe;
+    logic [31:0] cache_mem_rdata;
+    logic [31:0] cache_mem_wdata;
     logic [15:0] cache_addr_mem;
     logic        cache_rd_mem, cache_wr_mem;
     logic        cache_ready_mem;
+    logic        cache_stall_cpu;
+    logic        cache_hit, cache_miss, cache_wb;
 
     logic        inj_en;
     logic [1:0]  inj_bank;
@@ -45,44 +39,79 @@ module tb_dft_dv_rand;
     logic [1:0]  inj_type;
 
     soc_dft_top dut (
-        .sys_clk            (sys_clk),
-        .sys_rst_n          (sys_rst_n),
-        .tck                (tck),
-        .tms                (tms),
-        .tdi                (tdi),
-        .tdo                (tdo),
-        .tdo_en             (tdo_en),
-        .trst_n             (trst_n),
-        .test_mode          (test_mode),
-        .scan_en            (scan_en),
-        .scan_in            (scan_in),
-        .scan_out           (scan_out),
-        .bist_done          (bist_done),
-        .bist_fail          (bist_fail),
-        .prog_sel           (prog_sel),
-        .x14                (x14),
-        .pc_obs             (pc_obs),
-        .alu_obs            (alu_obs),
-        .cache_cpu_wdata    (cache_cpu_wdata),
-        .cache_cpu_rdata    (cache_cpu_rdata),
-        .cache_cpu_rdata_oe (cache_cpu_rdata_oe),
-        .cache_addr_cpu     (cache_addr_cpu),
-        .cache_rd_cpu       (cache_rd_cpu),
-        .cache_wr_cpu       (cache_wr_cpu),
-        .cache_stall_cpu    (cache_stall_cpu),
-        .cache_mem_rdata    (cache_mem_rdata),
-        .cache_mem_wdata    (cache_mem_wdata),
-        .cache_mem_wdata_oe (cache_mem_wdata_oe),
-        .cache_addr_mem     (cache_addr_mem),
-        .cache_rd_mem       (cache_rd_mem),
-        .cache_wr_mem       (cache_wr_mem),
-        .cache_ready_mem    (cache_ready_mem),
-        .inj_en             (inj_en),
-        .inj_bank           (inj_bank),
-        .inj_addr           (inj_addr),
-        .inj_bit            (inj_bit),
-        .inj_type           (inj_type)
+        .sys_clk         (sys_clk),
+        .sys_rst_n       (sys_rst_n),
+        .tck             (tck),
+        .tms             (tms),
+        .tdi             (tdi),
+        .tdo             (tdo),
+        .tdo_en          (tdo_en),
+        .trst_n          (trst_n),
+        .test_mode       (test_mode),
+        .scan_en         (scan_en),
+        .scan_in         (scan_in),
+        .scan_out        (scan_out),
+        .bist_done       (bist_done),
+        .bist_fail       (bist_fail),
+        .prog_sel        (prog_sel),
+        .x14             (x14),
+        .pc_obs          (pc_obs),
+        .alu_obs         (alu_obs),
+        .cache_mem_rdata (cache_mem_rdata),
+        .cache_mem_wdata (cache_mem_wdata),
+        .cache_addr_mem  (cache_addr_mem),
+        .cache_rd_mem    (cache_rd_mem),
+        .cache_wr_mem    (cache_wr_mem),
+        .cache_ready_mem (cache_ready_mem),
+        .cache_stall_cpu (cache_stall_cpu),
+        .cache_hit       (cache_hit),
+        .cache_miss      (cache_miss),
+        .cache_wb        (cache_wb),
+        .inj_en          (inj_en),
+        .inj_bank        (inj_bank),
+        .inj_addr        (inj_addr),
+        .inj_bit         (inj_bit),
+        .inj_type        (inj_type)
     );
+
+    // Backing synchronous memory for DV functional + integrated cache passes
+    logic [31:0] ext_mem [0:1023];
+    logic        mm_busy, mm_is_wr;
+    logic [9:0]  mm_addr;
+    logic [31:0] mm_wdata;
+    logic [1:0]  mm_cnt;
+    /* verilator lint_off SYNCASYNCNET */
+    always_ff @(posedge sys_clk or negedge sys_rst_n) begin
+        if (!sys_rst_n) begin
+            cache_ready_mem <= 1'b0;
+            cache_mem_rdata <= 32'd0;
+            mm_busy         <= 1'b0;
+            mm_is_wr        <= 1'b0;
+            mm_addr         <= 10'd0;
+            mm_wdata        <= 32'd0;
+            mm_cnt          <= 2'd0;
+        end else begin
+            cache_ready_mem <= 1'b0;
+            if (!mm_busy) begin
+                if (!cache_ready_mem && (cache_rd_mem || cache_wr_mem)) begin
+                    mm_busy  <= 1'b1;
+                    mm_is_wr <= cache_wr_mem;
+                    mm_addr  <= cache_addr_mem[11:2];
+                    mm_wdata <= cache_mem_wdata;
+                    mm_cnt   <= 2'd2;
+                end
+            end else if (mm_cnt == 2'd1) begin
+                if (mm_is_wr) ext_mem[mm_addr] <= mm_wdata;
+                else          cache_mem_rdata  <= ext_mem[mm_addr];
+                cache_ready_mem <= 1'b1;
+                mm_busy         <= 1'b0;
+                mm_cnt          <= 2'd0;
+            end else begin
+                mm_cnt <= mm_cnt - 2'd1;
+            end
+        end
+    end
+    /* verilator lint_on SYNCASYNCNET */
 
     dft_sva_mon u_sva (
         .sys_clk            (sys_clk),
@@ -202,6 +231,7 @@ module tb_dft_dv_rand;
     logic [31:0] rand32;
 
     initial begin
+        for (iter = 0; iter < 1024; iter = iter + 1) ext_mem[iter] = 32'd0;
         seed            = 32'h2026_1116;
         sys_rst_n       = 1'b0;
         trst_n          = 1'b0;
@@ -211,12 +241,6 @@ module tb_dft_dv_rand;
         scan_en         = 1'b0;
         scan_in         = 2'b00;
         prog_sel        = 1'b0;
-        cache_cpu_wdata = 8'd0;
-        cache_addr_cpu  = 16'd0;
-        cache_rd_cpu    = 1'b0;
-        cache_wr_cpu    = 1'b0;
-        cache_mem_rdata = 8'd0;
-        cache_ready_mem = 1'b1;
         inj_en          = 1'b0;
         inj_bank        = 2'd0;
         inj_addr        = 3'd0;
@@ -228,29 +252,38 @@ module tb_dft_dv_rand;
         @(negedge tck);     trst_n    = 1'b1;
         tap_step(1'b0, 1'b0); // -> RTI
 
-        // 1. Functional CPU Program 0 & Program 1 + Cache bus toggle before DFT
-        repeat (35) @(posedge sys_clk);
-        @(negedge sys_clk);
-        cache_addr_cpu  = 16'hFFFF;
-        cache_cpu_wdata = 8'hFF;
-        cache_mem_rdata = 8'hFF;
-        cache_wr_cpu    = 1'b1;
-        @(posedge sys_clk);
-        @(negedge sys_clk); cache_wr_cpu = 1'b0;
-        repeat (6) @(posedge sys_clk);
-        @(negedge sys_clk);
-        cache_addr_cpu  = 16'h0000;
-        cache_cpu_wdata = 8'h00;
-        cache_mem_rdata = 8'h00;
-        cache_rd_cpu    = 1'b1;
-        @(posedge sys_clk);
-        @(negedge sys_clk); cache_rd_cpu = 1'b0;
-        repeat (6) @(posedge sys_clk);
+        // 1a. Functional CPU Program 0 (Fibonacci)
+        repeat (40) @(posedge sys_clk);
 
-        @(negedge sys_clk); prog_sel = 1'b1; sys_rst_n = 1'b0;
+        // 1b. Functional CPU Program 1 (End-to-End Integrated RV32I + 2-Way D-Cache -> x14=1297)
+        @(negedge sys_clk);
+        prog_sel         = 1'b1;
+        sys_rst_n        = 1'b0;
+        ext_mem[10'h000] = 32'd10;
+        ext_mem[10'h008] = 32'd20;
+        ext_mem[10'h010] = 32'd30;
+        ext_mem[10'h018] = 32'd40;
+        ext_mem[10'h003] = 32'd77;
+        ext_mem[10'h005] = 32'd88;
         repeat (3) @(posedge sys_clk);
         @(negedge sys_clk); sys_rst_n = 1'b1;
-        repeat (25) @(posedge sys_clk);
+        repeat (200) @(posedge sys_clk);
+        if (x14 !== 32'd1297) begin
+            $fatal(1, "DV FAIL [Integrated Cache Prog1]: exp x14=1297 got %0d", x14);
+        end
+
+        // 1c. High-bit toggle pass on integrated cache data path (0xFFFF_FF00 / 0xAAAA_5555)
+        @(negedge sys_clk);
+        sys_rst_n        = 1'b0;
+        ext_mem[10'h000] = 32'hFFFF_FF00;
+        ext_mem[10'h008] = 32'hFFFF_FF00;
+        ext_mem[10'h010] = 32'hAAAA_5555;
+        ext_mem[10'h018] = 32'h5555_AAAA;
+        ext_mem[10'h003] = 32'hFFFF_FFFF;
+        ext_mem[10'h005] = 32'h0000_0000;
+        repeat (3) @(posedge sys_clk);
+        @(negedge sys_clk); sys_rst_n = 1'b1;
+        repeat (160) @(posedge sys_clk);
         @(negedge sys_clk); prog_sel = 1'b0;
 
         // 2. Visit Pause-IR / EX2-IR explicitly to hit all 16 TAP states

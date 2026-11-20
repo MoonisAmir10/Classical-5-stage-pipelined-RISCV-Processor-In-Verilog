@@ -25,7 +25,14 @@ module rv32i_regfile (
         end
     end
 
-    assign reg_read_data_rs1 = (reg_read_addr_rs1 == 5'd0) ? 32'd0 : reg_array[reg_read_addr_rs1];
-    assign reg_read_data_rs2 = (reg_read_addr_rs2 == 5'd0) ? 32'd0 : reg_array[reg_read_addr_rs2];
+    // Hardwired x0 == 0 with WB-to-ID write-first internal bypass
+    assign reg_read_data_rs1 = (reg_read_addr_rs1 == 5'd0) ? 32'd0 :
+                               (reg_write_en && (reg_write_dest_addr == reg_read_addr_rs1)) ? reg_write_data :
+                               reg_array[reg_read_addr_rs1];
+
+    assign reg_read_data_rs2 = (reg_read_addr_rs2 == 5'd0) ? 32'd0 :
+                               (reg_write_en && (reg_write_dest_addr == reg_read_addr_rs2)) ? reg_write_data :
+                               reg_array[reg_read_addr_rs2];
+
     assign x14               = reg_array[14];
 endmodule

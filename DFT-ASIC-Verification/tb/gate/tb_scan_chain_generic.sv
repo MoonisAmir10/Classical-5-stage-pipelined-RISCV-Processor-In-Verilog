@@ -20,21 +20,17 @@ module tb_scan_chain_generic #(
     wire [31:0] pc_obs;
     wire [31:0] alu_obs;
 
-    // External CPU/Mem stub tied idle so only RV32I processor runs
-    reg  [7:0]  cache_cpu_wdata;
-    wire [7:0]  cache_cpu_rdata;
-    wire        cache_cpu_rdata_oe;
-    reg  [15:0] cache_addr_cpu;
-    reg         cache_rd_cpu;
-    reg         cache_wr_cpu;
-    wire        cache_stall_cpu;
-    reg  [7:0]  cache_mem_rdata;
-    wire [7:0]  cache_mem_wdata;
-    wire        cache_mem_wdata_oe;
+    // Off-chip memory bus tied idle so RV32I Fibonacci runs standalone
+    reg  [31:0] cache_mem_rdata;
+    wire [31:0] cache_mem_wdata;
     wire [15:0] cache_addr_mem;
     wire        cache_rd_mem;
     wire        cache_wr_mem;
     reg         cache_ready_mem;
+    wire        cache_stall_cpu;
+    wire        cache_hit;
+    wire        cache_miss;
+    wire        cache_wb;
 
     // MBIST stub tied idle
     reg         bist_en;
@@ -67,20 +63,16 @@ module tb_scan_chain_generic #(
         .x14               (x14),
         .pc_obs            (pc_obs),
         .alu_obs           (alu_obs),
-        .cache_cpu_wdata   (cache_cpu_wdata),
-        .cache_cpu_rdata   (cache_cpu_rdata),
-        .cache_cpu_rdata_oe(cache_cpu_rdata_oe),
-        .cache_addr_cpu    (cache_addr_cpu),
-        .cache_rd_cpu      (cache_rd_cpu),
-        .cache_wr_cpu      (cache_wr_cpu),
-        .cache_stall_cpu   (cache_stall_cpu),
         .cache_mem_rdata   (cache_mem_rdata),
         .cache_mem_wdata   (cache_mem_wdata),
-        .cache_mem_wdata_oe(cache_mem_wdata_oe),
         .cache_addr_mem    (cache_addr_mem),
         .cache_rd_mem      (cache_rd_mem),
         .cache_wr_mem      (cache_wr_mem),
         .cache_ready_mem   (cache_ready_mem),
+        .cache_stall_cpu   (cache_stall_cpu),
+        .cache_hit         (cache_hit),
+        .cache_miss        (cache_miss),
+        .cache_wb          (cache_wb),
         .bist_en           (bist_en),
         .bist_bank_sel     (bist_bank_sel),
         .bist_addr         (bist_addr),
@@ -168,11 +160,7 @@ module tb_scan_chain_generic #(
         prog_sel        = 1'b0;
         scan_en         = 1'b0;
         scan_in         = {NUM_CHAINS{1'b0}};
-        cache_cpu_wdata = 8'd0;
-        cache_addr_cpu  = 16'd0;
-        cache_rd_cpu    = 1'b0;
-        cache_wr_cpu    = 1'b0;
-        cache_mem_rdata = 8'd0;
+        cache_mem_rdata = 32'd0;
         cache_ready_mem = 1'b0;
         bist_en         = 1'b0;
         bist_bank_sel   = 2'd0;

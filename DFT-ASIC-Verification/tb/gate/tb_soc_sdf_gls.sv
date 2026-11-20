@@ -1,19 +1,23 @@
 `timescale 1ns/1ps
 
+`ifndef DBG03_MUX_WIRE
+`define DBG03_MUX_WIRE _scan_mux_d_642_
+`endif
+
 // Phase 5 Full-SoC Back-Annotated SDF Gate-Level Verification & Debug Suite:
 // Targets `build/phase5/soc_dft_top_cts.v` annotated via `$sdf_annotate` (+SDF=...).
 // Covers:
-//   - FUNC: 100 MHz RV32I Fibonacci execution (`x14 == 34`)
-//   - ATPG-01 / GLS-01: 2,151-FF `00110011...` bypass scan integrity @ 10 MHz TCK
+//   - FUNC: 100 MHz RV32I Fibonacci (`x14 == 34`) + Integrated RV32I/D-Cache (`x14 == 1297`)
+//   - ATPG-01 / GLS-01: TOTAL_FFS-FF `00110011...` bypass scan integrity @ 10 MHz TCK
 //   - MBIST: Clean March-C run across all 4 SRAM banks under clock-balanced SDF
 //   - COMP+LOC: 2:8 Decompressor + 100 MHz 2-pulse LOC Capture + 16-bit MISR
 //   - DBG-01: Un-masked async reset leak corrupting scan shift -> fixed by rst_mask_en=1
-//   - DBG-03: Uninitialized Chain-3 X-flop (_15758_) corrupting MISR -> diagnosed to
+//   - DBG-03: Uninitialized Chain-3 X-flop corrupting MISR -> diagnosed to
 //             reports/ate_sim_fail.log & isolated via chain_x_mask[3]=1 (`TDR_COMP_CFG`)
-module tb_soc_sdf_gls;
-
-    localparam integer TOTAL_FFS = 2151;
-    localparam integer MAX_CH_LEN = 269;
+module tb_soc_sdf_gls #(
+    parameter integer TOTAL_FFS  = 1600,
+    parameter integer MAX_CH_LEN = 200
+);
 
     reg         sys_clk;
     reg         sys_rst_n;
@@ -34,54 +38,82 @@ module tb_soc_sdf_gls;
     reg         prog_sel;
     wire [31:0] x14, pc_obs, alu_obs;
 
-    reg  [7:0]  cache_cpu_wdata;
-    wire [7:0]  cache_cpu_rdata;
-    wire        cache_cpu_rdata_oe;
-    reg  [15:0] cache_addr_cpu;
-    reg         cache_rd_cpu, cache_wr_cpu;
-    wire        cache_stall_cpu;
-
-    reg  [7:0]  cache_mem_rdata;
-    wire [7:0]  cache_mem_wdata;
-    wire        cache_mem_wdata_oe;
+    reg  [31:0] cache_mem_rdata;
+    wire [31:0] cache_mem_wdata;
     wire [15:0] cache_addr_mem;
     wire        cache_rd_mem, cache_wr_mem;
     reg         cache_ready_mem;
+    wire        cache_stall_cpu;
+    wire        cache_hit, cache_miss, cache_wb;
 
     soc_dft_top dut (
-        .sys_clk            (sys_clk),
-        .sys_rst_n          (sys_rst_n),
-        .tck                (tck),
-        .tms                (tms),
-        .tdi                (tdi),
-        .tdo                (tdo),
-        .tdo_en             (tdo_en),
-        .trst_n             (trst_n),
-        .test_mode          (test_mode),
-        .scan_en            (scan_en),
-        .scan_in            (scan_in),
-        .scan_out           (scan_out),
-        .bist_done          (bist_done),
-        .bist_fail          (bist_fail),
-        .prog_sel           (prog_sel),
-        .x14                (x14),
-        .pc_obs             (pc_obs),
-        .alu_obs            (alu_obs),
-        .cache_cpu_wdata    (cache_cpu_wdata),
-        .cache_cpu_rdata    (cache_cpu_rdata),
-        .cache_cpu_rdata_oe (cache_cpu_rdata_oe),
-        .cache_addr_cpu     (cache_addr_cpu),
-        .cache_rd_cpu       (cache_rd_cpu),
-        .cache_wr_cpu       (cache_wr_cpu),
-        .cache_stall_cpu    (cache_stall_cpu),
-        .cache_mem_rdata    (cache_mem_rdata),
-        .cache_mem_wdata    (cache_mem_wdata),
-        .cache_mem_wdata_oe (cache_mem_wdata_oe),
-        .cache_addr_mem     (cache_addr_mem),
-        .cache_rd_mem       (cache_rd_mem),
-        .cache_wr_mem       (cache_wr_mem),
-        .cache_ready_mem    (cache_ready_mem)
+        .sys_clk         (sys_clk),
+        .sys_rst_n       (sys_rst_n),
+        .tck             (tck),
+        .tms             (tms),
+        .tdi             (tdi),
+        .tdo             (tdo),
+        .tdo_en          (tdo_en),
+        .trst_n          (trst_n),
+        .test_mode       (test_mode),
+        .scan_en         (scan_en),
+        .scan_in         (scan_in),
+        .scan_out        (scan_out),
+        .bist_done       (bist_done),
+        .bist_fail       (bist_fail),
+        .prog_sel        (prog_sel),
+        .x14             (x14),
+        .pc_obs          (pc_obs),
+        .alu_obs         (alu_obs),
+        .cache_mem_rdata (cache_mem_rdata),
+        .cache_mem_wdata (cache_mem_wdata),
+        .cache_addr_mem  (cache_addr_mem),
+        .cache_rd_mem    (cache_rd_mem),
+        .cache_wr_mem    (cache_wr_mem),
+        .cache_ready_mem (cache_ready_mem),
+        .cache_stall_cpu (cache_stall_cpu),
+        .cache_hit       (cache_hit),
+        .cache_miss      (cache_miss),
+        .cache_wb        (cache_wb)
     );
+
+    // Off-chip synchronous backing memory for 100 MHz SDF functional cache verification
+    reg [31:0] ext_mem [0:1023];
+    reg        mm_busy, mm_is_wr;
+    reg [9:0]  mm_addr;
+    reg [31:0] mm_wdata;
+    reg [2:0]  mm_cnt;
+
+    always @(posedge sys_clk or negedge sys_rst_n) begin
+        if (!sys_rst_n) begin
+            cache_ready_mem <= 1'b0;
+            cache_mem_rdata <= 32'd0;
+            mm_busy         <= 1'b0;
+            mm_is_wr        <= 1'b0;
+            mm_addr         <= 10'd0;
+            mm_wdata        <= 32'd0;
+            mm_cnt          <= 3'd0;
+        end else begin
+            cache_ready_mem <= 1'b0;
+            if (!mm_busy) begin
+                if (!cache_ready_mem && (cache_rd_mem === 1'b1 || cache_wr_mem === 1'b1)) begin
+                    mm_busy  <= 1'b1;
+                    mm_is_wr <= (cache_wr_mem === 1'b1);
+                    mm_addr  <= cache_addr_mem[11:2];
+                    mm_wdata <= cache_mem_wdata;
+                    mm_cnt   <= 3'd2;
+                end
+            end else if (mm_cnt == 3'd1) begin
+                if (mm_is_wr) ext_mem[mm_addr] <= mm_wdata;
+                else          cache_mem_rdata <= ext_mem[mm_addr];
+                cache_ready_mem <= 1'b1;
+                mm_busy         <= 1'b0;
+                mm_cnt          <= 3'd0;
+            end else begin
+                mm_cnt <= mm_cnt - 3'd1;
+            end
+        end
+    end
 
     initial sys_clk = 1'b0;
     always #5 sys_clk = ~sys_clk; // 100 MHz
@@ -133,7 +165,7 @@ module tb_soc_sdf_gls;
     integer fail_fd;
     integer write_fail_log;
     integer quick_corner;
-    integer cyc, seen_34;
+    integer cyc, seen_34, k;
     integer mismatch_cnt, x_cnt;
     integer inj_at;
     logic [47:0] dr_out;
@@ -141,6 +173,7 @@ module tb_soc_sdf_gls;
     logic [15:0] masked_misr;
 
     initial begin
+        for (k = 0; k < 1024; k = k + 1) ext_mem[k] = 32'd0;
         if (!$value$plusargs("SDF=%s", sdf_file)) begin
             sdf_file = "build/phase5/soc_dft_top_slow.sdf";
         end
@@ -153,10 +186,8 @@ module tb_soc_sdf_gls;
             fail_fd = 0;
         end
 
-        sys_rst_n       = 1'b0; trst_n = 1'b0; tms = 1'b1; tdi = 1'b0;
-        test_mode       = 1'b0; scan_en = 1'b0; scan_in = 2'b00; prog_sel = 1'b0;
-        cache_cpu_wdata = 8'd0; cache_addr_cpu = 16'd0; cache_rd_cpu = 1'b0; cache_wr_cpu = 1'b0;
-        cache_mem_rdata = 8'd0; cache_ready_mem = 1'b1;
+        sys_rst_n = 1'b0; trst_n = 1'b0; tms = 1'b1; tdi = 1'b0;
+        test_mode = 1'b0; scan_en = 1'b0; scan_in = 2'b00; prog_sel = 1'b0;
 
         repeat (6) @(posedge sys_clk);
         @(negedge sys_clk); sys_rst_n = 1'b1;
@@ -164,7 +195,7 @@ module tb_soc_sdf_gls;
         tap_step(1'b0, 1'b0); // Run-Test/Idle
 
         // -----------------------------------------------------------------
-        // 1. FUNC Mode @ 100 MHz (Fibonacci x14 == 34 under SDF back-annotation)
+        // 1a. FUNC Mode @ 100 MHz (Fibonacci x14 == 34 under SDF back-annotation)
         // -----------------------------------------------------------------
         seen_34 = 0;
         for (cyc = 0; cyc < 100; cyc = cyc + 1) begin
@@ -172,10 +203,34 @@ module tb_soc_sdf_gls;
             if (x14 === 32'd34) seen_34 = 1;
         end
         if (seen_34 == 0) begin
-            $display("FAIL [SDF FUNC 100MHz]: RV32I Fibonacci failed to reach x14=34 under %s", sdf_file);
+            $display("FAIL [SDF FUNC 100MHz Fib]: RV32I Fibonacci failed to reach x14=34 under %s", sdf_file);
             $fatal(1);
         end
-        $display("PASS [SDF FUNC 100MHz]: RV32I Fibonacci reached x14=34 cleanly (%s)", sdf_file);
+        $display("PASS [SDF FUNC 100MHz Fib]: RV32I Fibonacci reached x14=34 cleanly (%s)", sdf_file);
+
+        // -----------------------------------------------------------------
+        // 1b. FUNC Mode @ 100 MHz (Integrated RV32I + 2-Way D-Cache x14 == 1297)
+        // -----------------------------------------------------------------
+        @(negedge sys_clk);
+        sys_rst_n = 1'b0;
+        prog_sel  = 1'b1;
+        ext_mem[10'h000] = 32'd10;
+        ext_mem[10'h008] = 32'd20;
+        ext_mem[10'h010] = 32'd30;
+        ext_mem[10'h018] = 32'd40;
+        ext_mem[10'h003] = 32'd77;
+        ext_mem[10'h005] = 32'd88;
+        repeat (6) @(posedge sys_clk);
+        @(negedge sys_clk); sys_rst_n = 1'b1;
+        repeat (220) @(posedge sys_clk); #2;
+        if (x14 !== 32'd1297 || ext_mem[10'h000] !== 32'd111 ||
+            ext_mem[10'h008] !== 32'd220 || ext_mem[10'h003] !== 32'd77) begin
+            $display("FAIL [SDF FUNC 100MHz Cache]: x14=%0d mm0=%0d mm8=%0d mm3=%0d (%s)",
+                     x14, ext_mem[10'h000], ext_mem[10'h008], ext_mem[10'h003], sdf_file);
+            $fatal(1);
+        end
+        $display("PASS [SDF FUNC 100MHz Cache]: Integrated RV32I + 2-Way D-Cache reached x14=1297 cleanly (%s)", sdf_file);
+        @(negedge sys_clk); prog_sel = 1'b0;
 
         // -----------------------------------------------------------------
         // 2. GLS-01 / ATPG-01: 00110011... Scan Integrity in 1-Chain Bypass
@@ -204,7 +259,7 @@ module tb_soc_sdf_gls;
             end
         end
         if (mismatch_cnt != 0) $fatal(1, "FAIL [SDF Bypass Shift]: %0d errors", mismatch_cnt);
-        $display("PASS [SDF Bypass Shift]: 2,151-FF 00110011... shift verified cleanly @ 10 MHz");
+        $display("PASS [SDF Bypass Shift]: %0d-FF 00110011... shift verified cleanly @ 10 MHz", TOTAL_FFS);
         end
 
         // -----------------------------------------------------------------
@@ -236,7 +291,6 @@ module tb_soc_sdf_gls;
             scan_in = (cyc[1] ^ cyc[0]) ? 2'b10 : 2'b01;
             @(posedge tck);
         end
-        // 2-pulse at-speed sys_clk Launch-on-Capture window
         @(negedge tck); scan_en = 1'b0;
         repeat (5) @(posedge tck);
 
@@ -255,7 +309,7 @@ module tb_soc_sdf_gls;
         end
         $display("PASS [SDF Compressed LOC]: 2:8 decomp + 100 MHz LOC capture clean (MISR=0x%04h)", golden_misr);
         if (quick_corner) begin
-            $display("PASS [Phase 5 Corner SDF Smoke]: FUNC, MBIST & Compressed LOC verified (%s)", sdf_file);
+            $display("PASS [Phase 5 Corner SDF Smoke]: FUNC(Fib+Cache), MBIST & Compressed LOC verified (%s)", sdf_file);
             $finish;
         end
 
@@ -263,17 +317,15 @@ module tb_soc_sdf_gls;
         // 5. DBG-01: Async Reset Leak Corrupting Scan Shift -> Masked Fix
         // -----------------------------------------------------------------
         @(negedge tck); scan_en = 1'b0;
-        jtag_ir(4'b0111); jtag_dr(16, 48'h0000, dr_out); // bypass 1-chain
-        jtag_ir(4'b0100); jtag_dr(8, 48'h01, dr_out);    // BUG: scan_mode=1, rst_mask_en=0!
+        jtag_ir(4'b0111); jtag_dr(16, 48'h0000, dr_out);
+        jtag_ir(4'b0100); jtag_dr(8, 48'h01, dr_out); // BUG: rst_mask_en=0
         @(negedge tck); scan_en = 1'b1;
         repeat (5) @(posedge tck);
 
-        // Fill bypass chain with all-1s so reset leak (flush to 0) is unmistakable
         for (cyc = 0; cyc < TOTAL_FFS + 10; cyc = cyc + 1) begin
             @(negedge tck); scan_in[0] = 1'b1;
             @(posedge tck);
         end
-        // Glitch sys_rst_n = 0 while rst_mask_en=0
         @(negedge tck); sys_rst_n = 1'b0;
         @(posedge tck); #5;
         @(negedge tck); sys_rst_n = 1'b1;
@@ -294,9 +346,8 @@ module tb_soc_sdf_gls;
         if (mismatch_cnt == 0) $fatal(1, "FAIL [DBG-01 Buggy]: reset leak was not observed!");
         $display("PASS [DBG-01 Buggy Reproduced]: un-masked sys_rst_n corrupted %0d/16 shifted bits!", mismatch_cnt);
 
-        // Now enable rst_mask_en = 1 and repeat identical glitch
         @(negedge tck); scan_en = 1'b0;
-        jtag_ir(4'b0100); jtag_dr(8, 48'h09, dr_out); // FIX: rst_mask_en=1!
+        jtag_ir(4'b0100); jtag_dr(8, 48'h09, dr_out); // FIX: rst_mask_en=1
         @(negedge tck); scan_en = 1'b1;
         repeat (5) @(posedge tck);
         for (cyc = 0; cyc < TOTAL_FFS + 10; cyc = cyc + 1) begin
@@ -316,23 +367,21 @@ module tb_soc_sdf_gls;
             if (scan_out[0] !== 1'b1) mismatch_cnt = mismatch_cnt + 1;
         end
         if (mismatch_cnt != 0) $fatal(1, "FAIL [DBG-01 Fixed]: rst_mask_en=1 still failed (%0d errors)", mismatch_cnt);
-        $display("PASS [DBG-01 Fixed]: rst_mask_en=1 protected 2,151-FF chain across sys_rst_n glitch (0 errors)");
+        $display("PASS [DBG-01 Fixed]: rst_mask_en=1 protected %0d-FF chain across sys_rst_n glitch (0 errors)", TOTAL_FFS);
 
         // -----------------------------------------------------------------
-        // 6. Targeted SA0 Failure on Chain 3 bit 42 (`_15758_`) for ATE Diagnosis
+        // 6. Targeted SA0 Failure on Chain 3 bit 42 for ATE Diagnosis
         // -----------------------------------------------------------------
         for (cyc = 0; cyc < TOTAL_FFS + 10; cyc = cyc + 1) begin
             @(negedge tck); scan_in[0] = 1'b1;
             @(posedge tck);
         end
-        // Inject 1'b0 at _15758_ (`ch3[42]`) cleanly on negedge across one shift edge
         @(negedge tck);
-        force dut.u_func_logic._scan_mux_d_849_ = 1'b0;
+        force dut.u_func_logic.`DBG03_MUX_WIRE = 1'b0;
         @(posedge tck);
         @(negedge tck);
-        release dut.u_func_logic._scan_mux_d_849_;
-        // Expected unload cycle in 1-chain bypass for ch3[42] (index 269*3 + 42 = 849):
-        // cyc = (2151 - 1) - 849 = 1301
+        release dut.u_func_logic.`DBG03_MUX_WIRE;
+
         mismatch_cnt = 0;
         for (cyc = 1; cyc < TOTAL_FFS; cyc = cyc + 1) begin
             scan_in[0] = 1'b1;
@@ -352,8 +401,8 @@ module tb_soc_sdf_gls;
         // 7. DBG-03: Uninitialized Chain-3 X-Flop Corrupting MISR -> X-Mask Fix
         // -----------------------------------------------------------------
         @(negedge tck); scan_en = 1'b0;
-        jtag_ir(4'b0111); jtag_dr(16, 48'h0007, dr_out); // misr_clr=1
-        jtag_ir(4'b0111); jtag_dr(16, 48'h0003, dr_out); // comp_en=1, misr_en=1, mask=0x00
+        jtag_ir(4'b0111); jtag_dr(16, 48'h0007, dr_out);
+        jtag_ir(4'b0111); jtag_dr(16, 48'h0003, dr_out);
         @(negedge tck); scan_en = 1'b1;
         repeat (5) @(posedge tck);
 
@@ -361,12 +410,11 @@ module tb_soc_sdf_gls;
             @(negedge tck); scan_in = 2'b00;
             @(posedge tck);
         end
-        // Latch X into Chain 3 bit 42 (_15758_) cleanly on negedge across 1 shift edge
         @(negedge tck);
-        force dut.u_func_logic._scan_mux_d_849_ = 1'bx;
+        force dut.u_func_logic.`DBG03_MUX_WIRE = 1'bx;
         @(posedge tck);
         @(negedge tck);
-        release dut.u_func_logic._scan_mux_d_849_;
+        release dut.u_func_logic.`DBG03_MUX_WIRE;
 
         x_cnt = 0;
         inj_at = -1;
@@ -387,10 +435,9 @@ module tb_soc_sdf_gls;
         end
         $display("PASS [DBG-03 Buggy Reproduced]: X at ch3[42] escaped at unload cyc=%0d and poisoned MISR=0x%04h!", inj_at, dut.misr_sig);
 
-        // Apply X-masking fix (`chain_x_mask = 8'h08` -> TDR_COMP_CFG = 16'h0043)
         @(negedge tck); scan_en = 1'b0;
-        jtag_ir(4'b0111); jtag_dr(16, 48'h0047, dr_out); // misr_clr=1, mask=0x08
-        jtag_ir(4'b0111); jtag_dr(16, 48'h0043, dr_out); // comp_en=1, misr_en=1, mask=0x08
+        jtag_ir(4'b0111); jtag_dr(16, 48'h0047, dr_out);
+        jtag_ir(4'b0111); jtag_dr(16, 48'h0043, dr_out);
         @(negedge tck); scan_en = 1'b1;
         repeat (5) @(posedge tck);
 
@@ -399,10 +446,10 @@ module tb_soc_sdf_gls;
             @(posedge tck);
         end
         @(negedge tck);
-        force dut.u_func_logic._scan_mux_d_849_ = 1'bx;
+        force dut.u_func_logic.`DBG03_MUX_WIRE = 1'bx;
         @(posedge tck);
         @(negedge tck);
-        release dut.u_func_logic._scan_mux_d_849_;
+        release dut.u_func_logic.`DBG03_MUX_WIRE;
 
         x_cnt = 0;
         for (cyc = 1; cyc < MAX_CH_LEN; cyc = cyc + 1) begin
@@ -420,7 +467,7 @@ module tb_soc_sdf_gls;
             $fclose(fail_fd);
         end
         $display("PASS [DBG-03 Fixed]: chain_x_mask=8'h08 blocked Chain-3 X cleanly -> deterministic MISR=0x%04h!", masked_misr);
-        $display("PASS [Phase 5 Full-SoC SDF GLS]: All FUNC, Bypass, MBIST, LOC+MISR, DBG-01 & DBG-03 verified!");
+        $display("PASS [Phase 5 Full-SoC SDF GLS]: All FUNC(Fib+Cache), Bypass, MBIST, LOC+MISR, DBG-01 & DBG-03 verified!");
         $finish;
     end
 

@@ -1,19 +1,19 @@
 category,name,cells,dffs,area_um2,extra
-ASIC_AREA,Baseline: rv32i_processor (IHP SG13G2),9649,2035,187353.28,GE=25815
-ASIC_AREA,Baseline: cache_2wsa_dft ctrl (excl. 4 SRAMs),1367,282,24395.59,GE=3361
-ASIC_AREA,Func Logic: No-Scan Baseline (soc_func_logic),9658,2151,180114.62,GE=24817
-ASIC_AREA,Func Logic: 8-Chain Scan Stitched (soc_func_scan8),11809,2151,219142.36,GE=30195
-ASIC_AREA,Full SoC: Post-Stitch Pre-CTS (soc_dft_top),14207,2550,256473.04,GE=35339
-ASIC_AREA,Full SoC: Post-CTS Signoff Stdcell (soc_dft_top_sta),15886,2550,298186.09,GE=41086
-ASIC_POWER,func@typ,100.0MHz,0.1/sys_clk (100 MHz),19.2784mW,int=16.6561mW sw=2.6182mW leak=4.083uW
-ASIC_POWER,scan_shift@typ,10.0MHz,0.1/tck (10 MHz shift-rate),2.6113mW,int=2.2785mW sw=0.3287mW leak=4.134uW
-ASIC_POWER,scan_shift_unscaled@typ,10.0MHz,0.1/min_clk default ref,5.1701mW,int=3.9397mW sw=1.2263mW leak=4.134uW
-ASIC_POWER,scan_capture@typ,100.0MHz,0.1/sys_clk (100 MHz LOC),19.2786mW,int=16.6564mW sw=2.6182mW leak=4.083uW
-ASIC_POWER,func@slow,100.0MHz,0.1/sys_clk (100 MHz),15.4067mW,int=13.4141mW sw=1.9742mW leak=18.288uW
-ASIC_POWER,scan_shift@slow,10.0MHz,0.1/tck (10 MHz shift-rate),2.1038mW,int=1.8371mW sw=0.248mW leak=18.714uW
-ASIC_POWER,scan_shift_unscaled@slow,10.0MHz,0.1/min_clk default ref,4.0894mW,int=3.15mW sw=0.9207mW leak=18.714uW
-ASIC_POWER,scan_capture@slow,100.0MHz,0.1/sys_clk (100 MHz LOC),15.4069mW,int=13.4143mW sw=1.9742mW leak=18.29uW
-ASIC_POWER,func@fast,100.0MHz,0.1/sys_clk (100 MHz),23.9813mW,int=20.5392mW sw=3.4332mW leak=8.855uW
-ASIC_POWER,scan_shift@fast,10.0MHz,0.1/tck (10 MHz shift-rate),3.2475mW,int=2.8074mW sw=0.4311mW leak=8.922uW
-ASIC_POWER,scan_shift_unscaled@fast,10.0MHz,0.1/min_clk default ref,6.4907mW,int=4.8719mW sw=1.6099mW leak=8.922uW
-ASIC_POWER,scan_capture@fast,100.0MHz,0.1/sys_clk (100 MHz LOC),23.9815mW,int=20.5395mW sw=3.4332mW leak=8.855uW
+ASIC_AREA,Baseline: rv32i_processor (IHP SG13G2),7948,1523,145478.21,GE=20045
+ASIC_AREA,Baseline: cache_2wsa_dft ctrl (excl. 4 SRAMs),1040,152,16423.46,GE=2263
+ASIC_AREA,Func Logic: No-Scan Baseline (soc_func_logic),8925,1586,146409.72,GE=20173
+ASIC_AREA,Func Logic: 8-Chain Scan Stitched (soc_func_scan8),10511,1586,175186.10,GE=24138
+ASIC_AREA,Full SoC: Post-Stitch Pre-CTS (soc_dft_top),12909,1985,212516.78,GE=29282
+ASIC_AREA,Full SoC: Post-CTS Signoff Stdcell (soc_dft_top_sta),14345,1985,248004.63,GE=34172
+ASIC_POWER,func@typ,100.0MHz,0.1/sys_clk (100 MHz),14.7903mW,int=12.6467mW sw=2.1402mW leak=3.404uW
+ASIC_POWER,scan_shift@typ,10.0MHz,0.1/tck (10 MHz shift-rate),2.1619mW,int=1.8775mW sw=0.2809mW leak=3.442uW
+ASIC_POWER,scan_shift_unscaled@typ,10.0MHz,0.1/min_clk default ref,4.3342mW,int=3.2256mW sw=1.1051mW leak=3.442uW
+ASIC_POWER,scan_capture@typ,100.0MHz,0.1/sys_clk (100 MHz LOC),14.7906mW,int=12.647mW sw=2.1402mW leak=3.404uW
+ASIC_POWER,func@slow,100.0MHz,0.1/sys_clk (100 MHz),11.8138mW,int=10.1848mW sw=1.6138mW leak=15.165uW
+ASIC_POWER,scan_shift@slow,10.0MHz,0.1/tck (10 MHz shift-rate),1.7416mW,int=1.5142mW sw=0.2119mW leak=15.48uW
+ASIC_POWER,scan_shift_unscaled@slow,10.0MHz,0.1/min_clk default ref,3.4258mW,int=2.5802mW sw=0.8301mW leak=15.48uW
+ASIC_POWER,scan_capture@slow,100.0MHz,0.1/sys_clk (100 MHz LOC),11.8140mW,int=10.1851mW sw=1.6138mW leak=15.166uW
+ASIC_POWER,func@fast,100.0MHz,0.1/sys_clk (100 MHz),18.4234mW,int=15.6069mW sw=2.809mW leak=7.477uW
+ASIC_POWER,scan_shift@fast,10.0MHz,0.1/tck (10 MHz shift-rate),2.6904mW,int=2.3142mW sw=0.3687mW leak=7.527uW
+ASIC_POWER,scan_shift_unscaled@fast,10.0MHz,0.1/min_clk default ref,5.4574mW,int=3.9965mW sw=1.4533mW leak=7.527uW
+ASIC_POWER,scan_capture@fast,100.0MHz,0.1/sys_clk (100 MHz LOC),18.4237mW,int=15.6072mW sw=2.809mW leak=7.477uW

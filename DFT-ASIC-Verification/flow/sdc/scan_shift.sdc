@@ -20,8 +20,8 @@ set_clock_groups -physically_exclusive -group {tck} -group {sys_clk}
 # Static async resets, SRAM standby ports, and functional I/O pins are false during serial scan shift
 set_false_path -from [get_cells u_*_ram_*]
 set_false_path -to   [get_cells u_*_ram_*]
-set_false_path -from [get_ports {sys_rst_n trst_n test_mode scan_en prog_sel cache_cpu_wdata[*] cache_addr_cpu[*] cache_rd_cpu cache_wr_cpu cache_mem_rdata[*] cache_ready_mem}]
-set_false_path -to   [get_ports {x14[*] pc_obs[*] alu_obs[*] cache_cpu_rdata[*] cache_cpu_rdata_oe cache_stall_cpu cache_mem_wdata[*] cache_mem_wdata_oe cache_addr_mem[*] cache_rd_mem cache_wr_mem bist_done bist_fail}]
+set_false_path -from [get_ports {sys_rst_n trst_n test_mode scan_en prog_sel cache_mem_rdata[*] cache_ready_mem}]
+set_false_path -to   [get_ports {x14[*] pc_obs[*] alu_obs[*] cache_mem_wdata[*] cache_addr_mem[*] cache_rd_mem cache_wr_mem cache_stall_cpu cache_hit cache_miss cache_wb bist_done bist_fail}]
 
 # Scan & JTAG shift I/O constraints
 set_input_delay  5.0 -clock tck [get_ports {scan_in[*] tms tdi}]

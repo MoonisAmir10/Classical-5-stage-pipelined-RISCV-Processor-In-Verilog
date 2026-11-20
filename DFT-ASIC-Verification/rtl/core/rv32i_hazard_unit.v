@@ -5,6 +5,7 @@ module rv32i_hazard_unit (
     input  wire       RegWriteW,
     input  wire [1:0] wbsel_E,
     input  wire       pc_sel,
+    input  wire       dcache_stall,
     input  wire [4:0] RD_E,
     input  wire [4:0] RD_M,
     input  wire [4:0] RD_W,
@@ -14,8 +15,11 @@ module rv32i_hazard_unit (
     input  wire [4:0] Rs2_E,
     output reg  [1:0] ForwardAE,
     output reg  [1:0] ForwardBE,
-    output wire       stallF,
-    output wire       stallD,
+    output wire       en_F,
+    output wire       en_D,
+    output wire       en_E,
+    output wire       en_M,
+    output wire       en_W,
     output wire       flushD,
     output wire       flushE
 );
@@ -39,9 +43,15 @@ module rv32i_hazard_unit (
             ForwardBE = 2'b00;
     end
 
-    assign lwstall = ((Rs1_D == RD_E) || (Rs2_D == RD_E)) && (RD_E != 5'd0) && wbsel_E[0];
-    assign stallF  = !(lwstall || pc_sel);
-    assign stallD  = !(lwstall || pc_sel);
-    assign flushE  = lwstall || pc_sel;
-    assign flushD  = pc_sel;
+    assign lwstall = (wbsel_E == 2'b01) && (RD_E != 5'd0) &&
+                     ((Rs1_D == RD_E) || (Rs2_D == RD_E));
+
+    assign en_F   = !dcache_stall && !lwstall;
+    assign en_D   = !dcache_stall && !lwstall;
+    assign en_E   = !dcache_stall;
+    assign en_M   = !dcache_stall;
+    assign en_W   = !dcache_stall;
+
+    assign flushD = !dcache_stall && pc_sel;
+    assign flushE = !dcache_stall && (lwstall || pc_sel);
 endmodule

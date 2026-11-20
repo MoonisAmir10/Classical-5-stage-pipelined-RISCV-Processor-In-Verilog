@@ -29,11 +29,11 @@ lint:
 	PATH=$(EDA_BIN):/usr/bin:/bin $(VERILATOR) $(V_LINT) --top-module soc_dft_top $(RTL_SOC)
 
 test-unit: $(BUILD_DIR)
-	$(IVERILOG) -g2012 -o $(BUILD_DIR)/tb_rv32i.vvp $(RTL_CORE) tb/unit/tb_rv32i_baseline.sv
+	$(IVERILOG) -g2012 -o $(BUILD_DIR)/tb_rv32i.vvp $(RTL_CORE) $(RTL_CACHE) tb/unit/tb_rv32i_baseline.sv
 	$(VVP) $(BUILD_DIR)/tb_rv32i.vvp
 	$(IVERILOG) -g2012 -o $(BUILD_DIR)/tb_cache.vvp $(RTL_CACHE) tb/unit/tb_cache_baseline.sv
 	$(VVP) $(BUILD_DIR)/tb_cache.vvp
-	PATH=$(EDA_BIN):/usr/bin:/bin $(VERILATOR) --binary $(V_FLAGS) --Mdir $(BUILD_DIR)/obj_rv32i $(RTL_CORE) tb/unit/tb_rv32i_baseline.sv -o Vtb_rv32i
+	PATH=$(EDA_BIN):/usr/bin:/bin $(VERILATOR) --binary $(V_FLAGS) --Mdir $(BUILD_DIR)/obj_rv32i $(RTL_CORE) $(RTL_CACHE) tb/unit/tb_rv32i_baseline.sv -o Vtb_rv32i
 	$(BUILD_DIR)/obj_rv32i/Vtb_rv32i
 	PATH=$(EDA_BIN):/usr/bin:/bin $(VERILATOR) --binary $(V_FLAGS) --Mdir $(BUILD_DIR)/obj_cache $(RTL_CACHE) tb/unit/tb_cache_baseline.sv -o Vtb_cache
 	$(BUILD_DIR)/obj_cache/Vtb_cache
@@ -83,13 +83,15 @@ synth-scan: $(BUILD_DIR)
 	PATH=$(EDA_BIN):/usr/bin:/bin IHP_LIB_TYP=$(IHP_LIB_TYP) python3 scripts/run_tradeoff_sweep.py --only-synth
 
 test-scan-gls: synth-scan
-	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -Ttyp -P tb_scan_chain_generic.NUM_CHAINS=1 -o $(BUILD_DIR)/phase4/sim_scan1.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan1.v tb/gate/tb_scan_chain_generic.sv
-	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_scan1.vvp
-	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -Ttyp -P tb_scan_chain_generic.NUM_CHAINS=4 -o $(BUILD_DIR)/phase4/sim_scan4.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan4.v tb/gate/tb_scan_chain_generic.sv
-	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_scan4.vvp
-	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -Ttyp -P tb_scan_chain_generic.NUM_CHAINS=8 -o $(BUILD_DIR)/phase4/sim_scan8.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan8.v tb/gate/tb_scan_chain_generic.sv
-	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_scan8.vvp
-	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -DPOST_SCAN_STITCH -Ttyp -o $(BUILD_DIR)/phase4/sim_soc_scan8.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan8.v rtl/dft/jtag_tap.sv rtl/dft/ieee1500_wrapper.sv rtl/dft/mbist_ctrl.sv rtl/dft/occ_clk_ctrl.sv rtl/dft/scan_comp_wrap.sv rtl/top/soc_dft_top.sv tb/gate/tb_soc_scan8_gls.sv
+	@TOT=$$(python3 -c "import json; d=json.load(open('$(BUILD_DIR)/phase4/scan8.json')); print(d['total_ffs'])"); \
+	LMAX=$$(python3 -c "import json; d=json.load(open('$(BUILD_DIR)/phase4/scan8.json')); print(d['max_chain_len'])"); \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -Ttyp -P tb_scan_chain_generic.NUM_CHAINS=1 -P tb_scan_chain_generic.TOTAL_FFS=$$TOT -o $(BUILD_DIR)/phase4/sim_scan1.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan1.v tb/gate/tb_scan_chain_generic.sv && \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_scan1.vvp && \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -Ttyp -P tb_scan_chain_generic.NUM_CHAINS=4 -P tb_scan_chain_generic.TOTAL_FFS=$$TOT -o $(BUILD_DIR)/phase4/sim_scan4.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan4.v tb/gate/tb_scan_chain_generic.sv && \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_scan4.vvp && \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -Ttyp -P tb_scan_chain_generic.NUM_CHAINS=8 -P tb_scan_chain_generic.TOTAL_FFS=$$TOT -o $(BUILD_DIR)/phase4/sim_scan8.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan8.v tb/gate/tb_scan_chain_generic.sv && \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_scan8.vvp && \
+	PATH=$(EDA_BIN):/usr/bin:/bin $(IVERILOG) -g2012 -DPOST_SCAN_STITCH -Ttyp -P tb_soc_scan8_gls.TOTAL_FFS=$$TOT -P tb_soc_scan8_gls.MAX_CH_LEN=$$LMAX -o $(BUILD_DIR)/phase4/sim_soc_scan8.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase4/soc_func_scan8.v rtl/dft/jtag_tap.sv rtl/dft/ieee1500_wrapper.sv rtl/dft/mbist_ctrl.sv rtl/dft/occ_clk_ctrl.sv rtl/dft/scan_comp_wrap.sv rtl/top/soc_dft_top.sv tb/gate/tb_soc_scan8_gls.sv && \
 	PATH=$(EDA_BIN):/usr/bin:/bin $(VVP) $(BUILD_DIR)/phase4/sim_soc_scan8.vvp
 
 atpg-sweep: synth-scan
@@ -99,18 +101,23 @@ sta: synth-scan
 	PATH=$(OPENSTA_BIN):$(EDA_BIN):/usr/bin:/bin IHP_LIB_TYP=$(IHP_LIB_TYP) python3 scripts/run_phase5_sta.py
 
 test-sdf-gls: sta
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(IVERILOG) -g2012 -gspecify -Tmax -o $(BUILD_DIR)/phase5/sim_soc_sdf_slow.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase5/soc_dft_top_cts.v tb/gate/tb_soc_sdf_gls.sv 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(VVP) $(BUILD_DIR)/phase5/sim_soc_sdf_slow.vvp +SDF=$(BUILD_DIR)/phase5/soc_dft_top_slow.sdf +FAIL_LOG=reports/ate_sim_fail.log 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(IVERILOG) -g2012 -gspecify -Ttyp -o $(BUILD_DIR)/phase5/sim_soc_sdf_typ.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase5/soc_dft_top_cts.v tb/gate/tb_soc_sdf_gls.sv 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(VVP) $(BUILD_DIR)/phase5/sim_soc_sdf_typ.vvp +SDF=$(BUILD_DIR)/phase5/soc_dft_top_typ.sdf +QUICK_CORNER 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(IVERILOG) -g2012 -gspecify -Tmin -o $(BUILD_DIR)/phase5/sim_soc_sdf_fast.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase5/soc_dft_top_cts.v tb/gate/tb_soc_sdf_gls.sv 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(VVP) $(BUILD_DIR)/phase5/sim_soc_sdf_fast.vvp +SDF=$(BUILD_DIR)/phase5/soc_dft_top_fast.sdf +QUICK_CORNER 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
+	@TOT=$$(python3 -c "import json; d=json.load(open('$(BUILD_DIR)/phase4/scan8.json')); print(d['total_ffs'])"); \
+	LMAX=$$(python3 -c "import json; d=json.load(open('$(BUILD_DIR)/phase4/scan8.json')); print(d['max_chain_len'])"); \
+	GIDX=$$(python3 -c "import json; d=json.load(open('$(BUILD_DIR)/phase4/scan8.json')); print(sum(d['chain_lengths'][:3]) + 42)"); \
+	MUXW="_scan_mux_d_$${GIDX}_"; \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(IVERILOG) -g2012 -gspecify -Tmax -P tb_soc_sdf_gls.TOTAL_FFS=$$TOT -P tb_soc_sdf_gls.MAX_CH_LEN=$$LMAX -DDBG03_MUX_WIRE=$$MUXW -o $(BUILD_DIR)/phase5/sim_soc_sdf_slow.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase5/soc_dft_top_cts.v tb/gate/tb_soc_sdf_gls.sv 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(VVP) $(BUILD_DIR)/phase5/sim_soc_sdf_slow.vvp +SDF=$(BUILD_DIR)/phase5/soc_dft_top_slow.sdf +FAIL_LOG=reports/ate_sim_fail.log 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(IVERILOG) -g2012 -gspecify -Ttyp -P tb_soc_sdf_gls.TOTAL_FFS=$$TOT -P tb_soc_sdf_gls.MAX_CH_LEN=$$LMAX -DDBG03_MUX_WIRE=$$MUXW -o $(BUILD_DIR)/phase5/sim_soc_sdf_typ.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase5/soc_dft_top_cts.v tb/gate/tb_soc_sdf_gls.sv 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(VVP) $(BUILD_DIR)/phase5/sim_soc_sdf_typ.vvp +SDF=$(BUILD_DIR)/phase5/soc_dft_top_typ.sdf +QUICK_CORNER 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(IVERILOG) -g2012 -gspecify -Tmin -P tb_soc_sdf_gls.TOTAL_FFS=$$TOT -P tb_soc_sdf_gls.MAX_CH_LEN=$$LMAX -DDBG03_MUX_WIRE=$$MUXW -o $(BUILD_DIR)/phase5/sim_soc_sdf_fast.vvp $(IHP_BUNDLE_V) rtl/mem/sram_sync_sp.v $(BUILD_DIR)/phase5/soc_dft_top_cts.v tb/gate/tb_soc_sdf_gls.sv 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(VVP) $(BUILD_DIR)/phase5/sim_soc_sdf_fast.vvp +SDF=$(BUILD_DIR)/phase5/soc_dft_top_fast.sdf +QUICK_CORNER 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }"
 
 test-dbg-studies: test-sdf-gls
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(IVERILOG) -g2012 -gspecify -Tmin -o $(BUILD_DIR)/phase5/sim_dbg02_buggy.vvp $(IHP_BUNDLE_V) $(BUILD_DIR)/phase5/dbg02_buggy.v tb/gate/tb_dbg02_skew_hold.sv 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(VVP) $(BUILD_DIR)/phase5/sim_dbg02_buggy.vvp +SDF=$(BUILD_DIR)/phase5/dbg02_buggy_fast.sdf +EXPECT_HOLD_FAIL 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(IVERILOG) -g2012 -gspecify -Tmin -o $(BUILD_DIR)/phase5/sim_dbg02_fixed.vvp $(IHP_BUNDLE_V) $(BUILD_DIR)/phase5/dbg02_fixed.v tb/gate/tb_dbg02_skew_hold.sv 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
-	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c '$(VVP) $(BUILD_DIR)/phase5/sim_dbg02_fixed.vvp +SDF=$(BUILD_DIR)/phase5/dbg02_fixed_fast.sdf 2>&1 | { grep -v "Timing checks" || test $$? -eq 1; }'
+	@PAIR=$$(python3 -c "import json; d=json.load(open('$(BUILD_DIR)/phase4/scan8.json')); print(d['chain_lengths'][0] + d['chain_lengths'][1])"); \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(IVERILOG) -g2012 -gspecify -Tmin -P tb_dbg02_skew_hold.CHAIN_PAIR_LEN=$$PAIR -o $(BUILD_DIR)/phase5/sim_dbg02_buggy.vvp $(IHP_BUNDLE_V) $(BUILD_DIR)/phase5/dbg02_buggy.v tb/gate/tb_dbg02_skew_hold.sv 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(VVP) $(BUILD_DIR)/phase5/sim_dbg02_buggy.vvp +SDF=$(BUILD_DIR)/phase5/dbg02_buggy_fast.sdf +EXPECT_HOLD_FAIL 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(IVERILOG) -g2012 -gspecify -Tmin -P tb_dbg02_skew_hold.CHAIN_PAIR_LEN=$$PAIR -o $(BUILD_DIR)/phase5/sim_dbg02_fixed.vvp $(IHP_BUNDLE_V) $(BUILD_DIR)/phase5/dbg02_fixed.v tb/gate/tb_dbg02_skew_hold.sv 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }" && \
+	PATH=$(EDA_BIN):/usr/bin:/bin bash -o pipefail -c "$(VVP) $(BUILD_DIR)/phase5/sim_dbg02_fixed.vvp +SDF=$(BUILD_DIR)/phase5/dbg02_fixed_fast.sdf 2>&1 | { grep -v 'Timing checks' || test \$$? -eq 1; }"
 	PATH=$(EDA_BIN):/usr/bin:/bin python3 scripts/ate_fail_diag.py reports/ate_sim_fail.log --meta $(BUILD_DIR)/phase4/scan8.json --report reports/ate_diag_report.md
 
 schematics: sta

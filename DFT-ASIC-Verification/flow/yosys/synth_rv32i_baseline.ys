@@ -8,7 +8,6 @@ read_verilog -DSYNTHESIS rtl/core/rv32i_pc.v
 read_verilog -DSYNTHESIS rtl/core/rv32i_reg_pl.v
 read_verilog -DSYNTHESIS rtl/core/rv32i_regfile.v
 read_verilog -DSYNTHESIS rtl/core/rv32i_instr_mem.v
-read_verilog -DSYNTHESIS rtl/core/rv32i_data_mem.v
 read_verilog -DSYNTHESIS rtl/core/rv32i_datapath.v
 read_verilog -DSYNTHESIS rtl/core/rv32i_processor.v
 hierarchy -check -top rv32i_processor

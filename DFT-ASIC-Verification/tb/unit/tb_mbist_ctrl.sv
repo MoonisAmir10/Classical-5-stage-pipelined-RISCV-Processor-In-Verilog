@@ -44,27 +44,30 @@ module tb_mbist_ctrl;
         .mbist_stat       (mbist_stat)
     );
 
-    wire [7:0]  unused_cpu_rdata, unused_mem_wdata;
-    wire        unused_cpu_oe, unused_stall, unused_mem_oe, unused_rd_mem, unused_wr_mem;
+    wire [31:0] unused_cpu_rdata, unused_mem_wdata;
+    wire        unused_stall, unused_rd_mem, unused_wr_mem;
+    wire        unused_hit, unused_miss, unused_wb;
     wire [15:0] unused_addr_mem;
 
     cache_2wsa_dft u_cache (
         .clock         (clk),
         .reset_n       (rst_n),
-        .cpu_wdata     (8'd0),
-        .cpu_rdata     (unused_cpu_rdata),
-        .cpu_rdata_oe  (unused_cpu_oe),
         .addr_cpu      (16'd0),
+        .cpu_wdata     (32'd0),
+        .cpu_wstrb     (4'b1111),
         .rd_cpu        (1'b0),
         .wr_cpu        (1'b0),
+        .cpu_rdata     (unused_cpu_rdata),
         .stall_cpu     (unused_stall),
-        .mem_rdata     (8'd0),
-        .mem_wdata     (unused_mem_wdata),
-        .mem_wdata_oe  (unused_mem_oe),
         .addr_mem      (unused_addr_mem),
+        .mem_wdata     (unused_mem_wdata),
+        .mem_rdata     (32'd0),
         .rd_mem        (unused_rd_mem),
         .wr_mem        (unused_wr_mem),
-        .ready_mem     (1'b1),
+        .ready_mem     (1'b0),
+        .cache_hit     (unused_hit),
+        .cache_miss    (unused_miss),
+        .cache_wb      (unused_wb),
         .bist_en       (bist_en),
         .bist_bank_sel (bist_bank_sel),
         .bist_addr     (bist_addr),

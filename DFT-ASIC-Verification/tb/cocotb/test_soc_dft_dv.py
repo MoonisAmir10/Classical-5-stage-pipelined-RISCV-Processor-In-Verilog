@@ -68,12 +68,8 @@ async def init_dut(dut):
     dut.scan_en.value = 0
     dut.scan_in.value = 0
     dut.prog_sel.value = 0
-    dut.cache_cpu_wdata.value = 0
-    dut.cache_addr_cpu.value = 0
-    dut.cache_rd_cpu.value = 0
-    dut.cache_wr_cpu.value = 0
     dut.cache_mem_rdata.value = 0
-    dut.cache_ready_mem.value = 1
+    dut.cache_ready_mem.value = 0
     dut.inj_en.value = 0
     dut.inj_bank.value = 0
     dut.inj_addr.value = 0

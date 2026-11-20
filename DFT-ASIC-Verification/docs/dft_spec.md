@@ -1,11 +1,11 @@
 # RISC-V SoC Subsystem — Design-for-Test (DFT) Architecture Specification
 
-**Document Version:** 1.0 (Phase 1 Sign-off)  
-**Target Technology:** IHP SG13G2 130 nm Standard Cell Library (`sg13g2_stdcell`, 1.2 V typ) & Sky130 HD / SRAM Macros  
+**Document Version:** 1.1 (Integrated RV32I + 2-Way D-Cache Sign-off)  
+**Target Technology:** IHP SG13G2 130 nm Standard Cell Library (`sg13g2_stdcell`, 1.2 V typ) & SRAM Macros  
 **Subsystem Top:** `soc_dft_top`  
 **Blocks Under Test:**
-1. `rv32i_processor` — 5-stage pipelined RV32I core (`2,035` sequential cells, `187,353.28 µm²` baseline SG13G2 cell area)
-2. `cache_2wsa_dft` — 2-way set-associative write-back cache controller (`282` sequential cells, `24,027.49 µm²` logic area)
+1. `rv32i_processor` — 5-stage pipelined RV32I core with `MEM`-stage D-cache master port and global pipeline stall (`1,523` sequential cells, `145,478.21 µm²` baseline SG13G2 cell area)
+2. `cache_2wsa_dft` — 32-bit 2-way set-associative write-back/write-allocate LRU D-cache controller (`152` sequential cells, `16,423.46 µm²` logic area), directly coupled to `rv32i_processor` inside `soc_func_logic` (`1,586` scan FFs total after constant/port optimization)
 3. `4 × sram_sync_sp` — Tag & Data SRAM macros (`u_tag_ram_w0/w1`: `8 × 14b`, `u_data_ram_w0/w1`: `8 × 32b`)
 
 ---
@@ -99,7 +99,7 @@ When any read mismatches expected data (`data_read ^ exp_data != 0`), `mbist_ctr
 * **Clocking (`occ_clk_ctrl`):**
   * Uses glitch-free ICG/mux topology selecting `tck` during `SCAN_SHIFT` (`scan_en = 1`) and `sys_clk` during `FUNC` or `SCAN_CAPTURE` (`scan_en = 0` when `occ_loc_en = 1` generates a clean 2-pulse Launch-on-Capture burst).
 * **Reset Controllability:**
-  * All core and cache flops (`rv32i_pc`, `rv32i_reg_pl`, `rv32i_regfile`, `rv32i_data_mem`, `cache_2wsa_dft`) receive `dft_rst_n = (test_mode && rst_mask_en) ? 1'b1 : sys_rst_n` so asynchronous reset cannot corrupt shift chains.
+  * All core and cache flops (`rv32i_pc`, `rv32i_reg_pl`, `rv32i_regfile`, `cache_ctrl_logic`) receive `dft_rst_n = (test_mode && rst_mask_en) ? 1'b1 : sys_rst_n` so asynchronous reset cannot corrupt shift chains.
 * **Scan & Compression (`scan_comp_wrap`):**
   * Baseline uncompressed scan vs. **2-to-8 XOR/LFSR decompressor** driving 8 balanced internal chains feeding an **8-to-2 spatial XOR compactor** + **16-bit MISR signature register** with per-chain `chain_x_mask[7:0]` gating.
   * Target ATPG experiments (`AUCOHL/Fault` + `Atalanta` + Python trade-off sweep): compare **1-chain vs. 4-chain vs. 8-chain** and **uncompressed vs. 4:1 compressed** shift cycles and stuck-at coverage.

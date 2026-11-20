@@ -51,12 +51,13 @@ module rv32i_wb_mux (
     input  wire [1:0]  wbsel,
     output reg  [31:0] write_data
 );
+    // Note: rv32i_datapath already computes pc_MEM_plus4 = pc_MEM + 4 -> pc_WB
     always @(*) begin
         case (wbsel)
             2'b00:   write_data = alu_result;
             2'b01:   write_data = dm_inp;
-            2'b10:   write_data = pc + 32'd4;
-            default: write_data = dm_inp;
+            2'b10:   write_data = pc;
+            default: write_data = alu_result;
         endcase
     end
 endmodule

@@ -3,13 +3,13 @@
 [![Language](https://img.shields.io/badge/Language-Verilog%20HDL-blue.svg)](https://en.wikipedia.org/wiki/Verilog)
 [![Architecture](https://img.shields.io/badge/ISA-RISC--V%20(RV32I)-red.svg)](https://riscv.org/)
 [![FPGA Target](https://img.shields.io/badge/FPGA-Digilent%20Artix--7%20100T-orange.svg)](https://digilent.com/reference/programmable-logic/nexys-a7/start)
-[![Clock Frequency](https://img.shields.io/badge/Max%20Freq-168%20MHz%20(FPGA)%20%7C%20169.5%20MHz%20(ASIC)-brightgreen.svg)]()
+[![Clock Frequency](https://img.shields.io/badge/Max%20Freq-168.1%20MHz%20(FPGA)%20%7C%20168.1%20MHz%20(ASIC)-brightgreen.svg)]()
 [![ASIC PDK](https://img.shields.io/badge/ASIC%20PDK-IHP%20SG13G2%20130nm-teal.svg)]()
 [![Cache](https://img.shields.io/badge/Cache-2--Way%20Set--Associative-purple.svg)]()
 
-A synthesizable, high-performance 32-bit single-core **RISC-V (RV32I)** processor implemented in Verilog HDL. The design features a classic **5-stage pipeline** with full **hazard detection**, **operand forwarding**, and an integrated **2-Way Set-Associative Data Cache** — now extended in [`DFT-ASIC-Verification/`](DFT-ASIC-Verification/README.md) with an end-to-end **open-source DFT, DV, ATPG, Multi-Corner OpenSTA Signoff, and SDF Silicon Debug flow**.
+A synthesizable, high-performance 32-bit single-core **RISC-V (RV32I)** processor implemented in Verilog HDL. The design features a classic **5-stage pipeline** with full **hazard detection**, **operand forwarding**, and an integrated **32-bit 2-Way Set-Associative Write-Back / Write-Allocate LRU Data Cache** wired directly into the `MEM` stage with global pipeline stall support — now extended in [`DFT-ASIC-Verification/`](DFT-ASIC-Verification/README.md) with an end-to-end **open-source DFT, DV, ATPG, Multi-Corner OpenSTA Signoff, and SDF Silicon Debug flow**.
 
-Prototyped and verified on **AMD/Xilinx Artix-7 100T FPGA** (`168.07 MHz`) and signed off as a scan-stitched **IHP SG13G2 130nm ASIC** (`169.49 MHz` typ / `110.50 MHz` slow, `298,186.09 um²` stdcell core = `41,086 GE`, `19.28 mW` @ `100 MHz`).
+Prototyped and verified on **AMD/Xilinx Artix-7 100T FPGA** (`168.07 MHz`) and signed off as a scan-stitched **IHP SG13G2 130nm ASIC** (`168.07 MHz` typ / `109.53 MHz` slow, `248,004.63 um²` stdcell core = `34,172 GE`, `14.79 mW` @ `100 MHz`).
 
 Developed by **[Moonis Amir Zaman](https://github.com/MoonisAmir10)** (M.Sc. Microelectronics & Chip Design, Technical University of Munich | Working Student at Infineon Technologies).
 
@@ -102,29 +102,29 @@ flowchart LR
 
 ## 🗄️ 2-Way Set-Associative Cache Architecture
 
-To alleviate the von Neumann memory bottleneck, a **2-Way Set-Associative Data Cache** is integrated:
-* **Tag & Data Arrays**: Separate synchronous SRAM blocks (`ram_sync_read_d0/d1` for data and `ram_sync_read_t0/t1` for tags).
-* **Parallel Lookup**: Both ways are indexed concurrently; tag comparison and valid bit checks determine hit/miss within a single clock cycle.
-* **Line Replacement & Refill**: On cache misses, the controller arbitrates with main memory to fetch complete cache blocks with minimal latency penalty.
+To alleviate the von Neumann memory bottleneck, a **32-bit 2-Way Set-Associative Write-Back / Write-Allocate LRU Data Cache** (`cache_2wsa`, 8 sets × 2 ways × 4B words) is directly integrated into the `MEM` stage of the 5-stage pipeline with full pipeline stall propagation (`dcache_stall`):
+* **Tag & Data Arrays**: Separate synchronous single-port SRAM blocks (`ram_sync_read_d0/d1` `8×32b` for data and `ram_sync_read_t0/t1` `8×14b` for `{Valid, Dirty, LRU, Tag[10:0]}`).
+* **Reset Tag Invalidation & Coherent Miss Handling**: Dedicated `S_INIT` 8-cycle reset sweep invalidates all tag entries on `reset_n`; synchronous lookup, victim-only dirty writeback, refill-with-write-miss merge, and registered backing-memory handshake (`rd_mem`/`wr_mem`/`ready_mem`).
+* **Self-Checking Verification**: Validated independently against a 2,500-op randomized golden LRU scoreboard (`cache_2wsa_tb.v`) and end-to-end inside `Processor` running RV32I `LW`/`SW` hit/miss/eviction/dirty-WB workloads (`main.v`, `x14=1297, 7H/7M/2WB`).
 
 ```
-       32-bit Memory Address
+       16-bit Byte Address (Word-Aligned)
 +--------------------+------------+--------+
-|    Tag [31:6]      | Index[5:2] | Offset |
+|    Tag [15:5]      | Index[4:2] | Byte[1:0]
 +--------------------+------------+--------+
           |                 |
           |                 v
           |      +--------------------+
-          |      |  Tag & Valid RAM   |
+          |      |  Tag/V/D/LRU RAM   |
           |      |   Way 0  |  Way 1  |
           |      +--------------------+
           v                 |
    +--------------+         |
    | Tag Match &  | <-------+
-   | Hit Detection|
+   | LRU Victim   |
    +--------------+
           |
-     Hit / Miss Status
+     Hit / Miss / Dirty Writeback
 ```
 
 ---
@@ -144,27 +144,27 @@ Targeted and synthesized for the **AMD/Xilinx Artix-7 100T FPGA (`XC7A100T-1CSG3
 | **Block RAM (BRAM)** | - | **0 BRAM** (Distributed RAM) | ✅ Minimal footprint |
 | **Benchmark Validation** | Fibonacci Sequence Loop | Complete verification | ✅ Hardware Verified |
 
-*(Open-source `Yosys synth_xilinx -family xc7` post-DFT mapping of the scan-ready SoC + wrappers: `3,902` LUTs, `2,798` FFs, `12 RAM32M`, `0 BRAM`.)*
+*(Open-source `Yosys synth_xilinx -family xc7` post-DFT mapping of the scan-ready SoC + wrappers: `3,800` LUTs, `2,155` FFs, `12 RAM32M`, `0 BRAM`.)*
 
 ### 2. IHP SG13G2 130nm ASIC Signoff (Post-Scan-Stitch & Post-CTS/ECO)
 
-Synthesized (`Yosys`), scan-stitched (`8` chains, `2,151` core FFs), CTS-buffered (`+1,666` buffers / `831` `_1 -> _2` gate upsizes), and signed off across all `3` modes × `3` PVT corners (`OpenSTA 3.2.0` + 4-state `iverilog -gspecify` SDF GLS) in [`DFT-ASIC-Verification/`](DFT-ASIC-Verification/README.md):
+Synthesized (`Yosys`), scan-stitched (`8` chains, `1,586` core+cache FFs), CTS-buffered (`+1,428` buffers / `971` `_1 -> _2` gate upsizes), and signed off across all `3` modes × `3` PVT corners (`OpenSTA 3.2.0` + 4-state `iverilog -gspecify` SDF GLS) in [`DFT-ASIC-Verification/`](DFT-ASIC-Verification/README.md):
 
 | ASIC Signoff Metric | `typ` (`1.20V, 25°C`) | `slow` (`1.08V, 125°C`) | `fast` (`1.32V, -40°C`) | Scope & Notes |
 |:---|:---:|:---:|:---:|:---|
-| **Max Functional / LOC $F_{\max}$** | **169.49 MHz** | **110.50 MHz** | **249.38 MHz** | `10.0 ns` period (`100 MHz` signoff) |
-| **Worst Setup Slack (`func` / `LOC`)** | `+4.10 ns` / `+4.10 ns` | `+0.95 ns` / `+0.95 ns` | `+5.99 ns` / `+4.39 ns` | `TNS = 0.00 ns` across all 9 corners |
-| **Worst Hold Slack (`func` / `shift`)** | `+0.10 ns` / `+0.09 ns` | `+0.24 ns` / `+0.23 ns` | `+0.04 ns` / `+0.01 ns` | Propagated clocks; `TNS = 0.00 ns` |
-| **Stdcell Core Area (`soc_dft_top_sta`)** | **`298,186.09 µm²`** | — | — | `0.2982 mm²` = **`41,086 GE`**, `15,886` stdcells, `2,550` DFFs + `1` latch |
-| **Est. Die Area incl. 4x SRAM Stubs** | **`326,986.09 µm²`** | — | — | `+28,800 µm²` (`2x 8x14b` Tag + `2x 8x32b` Data modeled stubs) |
-| **Functional Power (`100 MHz`, `0.1` act)** | **19.28 mW** | **15.41 mW** | **23.98 mW** | `Seq 12.81 mW`, `Clk 4.71 mW`, `Comb 1.76 mW` @ `typ` |
-| **Scan-Shift Power (`10 MHz` `tck`)** | **2.61 mW** | **2.10 mW** | **3.25 mW** | Scaled to `10 MHz` shift clock (`0.1 / 100 ns`) |
-| **Static Leakage Power (`stdcells`)** | **4.08 µW** | **18.29 µW** | **8.86 µW** | Behavioral SRAM Liberty stubs exclude array power (`Macro = 0`) |
+| **Max Functional / LOC $F_{\max}$** | **168.07 MHz** | **109.53 MHz** | **227.79 MHz** | `10.0 ns` period (`100 MHz` signoff) |
+| **Worst Setup Slack (`func` / `LOC`)** | `+4.05 ns` / `+4.05 ns` | `+0.87 ns` / `+0.87 ns` | `+5.61 ns` / `+4.39 ns` | `TNS = 0.00 ns` across all 9 corners |
+| **Worst Hold Slack (`func` / `shift`)** | `+0.04 ns` / `+0.09 ns` | `+0.15 ns` / `+0.23 ns` | `+0.00 ns` / `+0.01 ns` | Propagated clocks; `TNS = 0.00 ns` |
+| **Stdcell Core Area (`soc_dft_top_sta`)** | **`248,004.63 µm²`** | — | — | `0.2480 mm²` = **`34,172 GE`**, `14,345` stdcells, `1,985` DFFs + `1` latch |
+| **Est. Die Area incl. 4x SRAM Stubs** | **`276,804.63 µm²`** | — | — | `+28,800 µm²` (`2x 8x14b` Tag + `2x 8x32b` Data modeled stubs) |
+| **Functional Power (`100 MHz`, `0.1` act)** | **14.79 mW** | **11.81 mW** | **18.42 mW** | `Seq 9.68 mW`, `Clk 3.56 mW`, `Comb 1.55 mW` @ `typ` |
+| **Scan-Shift Power (`10 MHz` `tck`)** | **2.16 mW** | **1.74 mW** | **2.69 mW** | Scaled to `10 MHz` shift clock (`0.1 / 100 ns`) |
+| **Static Leakage Power (`stdcells`)** | **3.40 µW** | **15.16 µW** | **7.48 µW** | Behavioral SRAM Liberty stubs exclude array power (`Macro = 0`) |
 
 > **DFT, ATPG & Verification Highlights** ([Full Report](DFT-ASIC-Verification/README.md)):
 > - **DFT IP Suite**: IEEE 1149.1 JTAG TAP (`IDCODE = 0x1BAD_D071`) + 4 TDRs, IEEE 1500 Core Test Wrapper (`WBR=97`), March-C + Checkerboard MBIST across all 4 SRAM banks, glitch-free OCC (`sg13g2_dllrq_1` ICG + 2-pulse LOC + reset mask), and `2:8` LFSR / `8:2` XOR / `16`-bit X-masked MISR compression.
-> - **ATPG (`Atalanta` + `Fault`)**: `41,842` collapsed faults (`0` aborted), **`99.983%`** All-PO / **`97.163%`** Scan-Out coverage; `8`-chain `2:8/8:2` compression cuts shift time by **`7.97x`** & ATE pins **`4x`** (`16 -> 4` pins) with **`0.000%`** XOR aliasing loss; Hybrid `512` PRPG + `714` top-off cuts ATE volume **`8.77x`**.
-> - **Coverage & Silicon Debug**: Verilator SVA/DV closure (`97.6%` line, `95.5%` toggle, `29/29` bins), `3/3` cocotb testsuites, 3-corner SDF GLS, plus reproduced/resolved `DBG-01` (async reset mask), `DBG-02` (`-0.42 ns -> +49.38 ns` lockup-latch hold fix), and `DBG-03` (`chain_x_mask` + automated ATE fail backtracing).
+> - **ATPG (`Atalanta` + `Fault`)**: `37,748` collapsed faults (`1` aborted, `9` redundant), **`99.976%`** All-PO / **`94.283%`** Scan-Out coverage; `8`-chain `2:8/8:2` compression cuts shift time by **`7.94x`** & ATE pins **`4x`** (`16 -> 4` pins) with **`0.000%`** XOR aliasing loss; Hybrid `512` PRPG + `1,372` top-off cuts ATE volume **`5.72x`**.
+> - **Coverage & Silicon Debug**: Verilator SVA/DV closure (`97.6%` line, `96.1%` toggle, `29/29` bins), `3/3` cocotb testsuites, 3-corner SDF GLS (verifying both Fibonacci `x14=34` and integrated RV32I + 2-way D-cache `x14=1297` @ `100 MHz`), plus reproduced/resolved `DBG-01` (async reset mask), `DBG-02` (`-0.48 ns -> +49.38 ns` lockup-latch hold fix), and `DBG-03` (`chain_x_mask` + automated ATE fail backtracing).
 
 ### 3. Extracted ASIC Schematics & ATPG Trade-Off Curves
 

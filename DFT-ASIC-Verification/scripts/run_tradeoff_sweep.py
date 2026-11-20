@@ -473,12 +473,21 @@ def write_report(
     r_82 = by_mode["8-Chain 2:8/8:2 Compressed (RTL)"]
     r_xm = by_mode["8-Chain 2:8/8:2 + Ch3 X-Mask"]
     r_hy = by_mode["Hybrid 2:8 LFSR(512) + TopOff"]
+    tot_ffs = stitch_res[8]["meta"]["total_ffs"]
+    lmax_8 = stitch_res[8]["meta"]["max_chain_len"]
+    ch3_len = stitch_res[8]["meta"]["chain_lengths"][3]
+    scan_delta = stitch_res[8]["stat"]["area_um2"] - base_area
+    tot_faults = atpg_info["total_faults"]
+    scan_det = int(round(tot_faults * r_8c["fc_scan_out_pct"] / 100.0))
+    all_det = int(round(tot_faults * r_1c["fc_all_po_pct"] / 100.0))
+    gap_faults = max(0, all_det - scan_det)
+    gap_pct = r_1c["fc_all_po_pct"] - r_8c["fc_scan_out_pct"]
     lines.extend([
-        f"1. **Shift-Time vs. Pin-Count Scaling**: Splitting the `2,151` FFs from 1 chain (`L_max=2,151`) to 8 balanced chains (`L_max=269`) reduces scan shift cycles by **{r_8c['shift_speedup_vs_1ch']:.2f}x** (`{r_1c['shift_cycles_total']:,}` -> `{r_8c['shift_cycles_total']:,}` cycles) at **zero additional scan-mux silicon cost** (`+39,027.74 um^2` = `+{100.0*(stitch_res[8]['stat']['area_um2']-base_area)/base_area:.2f}%` fixed across 1, 4, and 8 chains).",
+        f"1. **Shift-Time vs. Pin-Count Scaling**: Splitting the `{tot_ffs:,}` FFs from 1 chain (`L_max={tot_ffs:,}`) to 8 balanced chains (`L_max={lmax_8}`) reduces scan shift cycles by **{r_8c['shift_speedup_vs_1ch']:.2f}x** (`{r_1c['shift_cycles_total']:,}` -> `{r_8c['shift_cycles_total']:,}` cycles) at **zero additional scan-mux silicon cost** (`+{scan_delta:,.2f} um^2` = `+{100.0*scan_delta/base_area:.2f}%` fixed across 1, 4, and 8 chains).",
         f"2. **4x ATE Pin & Data Volume Compression**: Adding `scan_comp_wrap` (`+{comp_area:,.1f} um^2`, only `+{100.0*comp_area/base_area:.2f}%` additional overhead) achieves the full **~8x test-time speedup** of 8 chains using only **4 external scan pins** (`2 SI + 2 SO`, down from `16` uncompressed pins) and reduces external scan-in data volume by **4.00x** (`{r_82['ate_in_bits_total']/1e6:.2f} Mb` vs. `{r_8c['ate_in_bits_total']/1e6:.2f} Mb`), with **0.000% spatial XOR aliasing loss** across per-shift-slice buckets (`{r_82['fc_scan_out_pct']:.3f}%` scan-out observability matching uncompressed scan-out `{r_8c['fc_scan_out_pct']:.3f}%`).",
-        f"3. **Internal Scan vs. Unwrapped Macro Outputs (`{r_8c['fc_scan_out_pct']:.3f}%` vs. `{r_1c['fc_all_po_pct']:.3f}%`)**: Pure internal scan FF observation detects `40,655 / 41,842` faults (`{r_8c['fc_scan_out_pct']:.3f}%`). The `1,180`-fault (`2.82%`) gap originates cleanly in combinational cones feeding module outputs and black-box `sram_sync_sp` ports (`sram_wdata`, `sram_wtag0/1`, `alu_obs`) lacking shadow capture FFs at the macro boundary — quantifying why full-SoC closure requires IEEE 1500 / wrapper cells around memory/probe outputs.",
-        f"4. **LFSR PRPG vs. Hybrid Top-Off**: The 2:8 LFSR+XOR phase-shifter matches unconstrained PRPG (`{curve_rows[-1]['lfsr28_all_pct']:.3f}%` vs. `{curve_rows[-1]['prpg_all_pct']:.3f}%` at 4,096 vectors) with rapid saturation above 512 vectors; topping up 512 2:8 LFSR vectors (`2` SI pins, `0.28 Mb`) with **`{atpg_info['hybrid_topoff_pats']:,}`** 8-chain deterministic top-off vectors (`1.53 Mb`) restores the full **`{r_hy['fc_all_po_pct']:.3f}%`** stuck-at ceiling in `{r_hy['pattern_count']:,}` total vectors (`{r_hy['ate_data_comp_ratio']:.2f}x` ATE scan-in volume reduction vs. 1-chain deterministic).",
-        f"5. **X-Masking Coverage Penalty**: Asserting `chain_x_mask = 8'h08` (masking Chain 3's 269 FFs to isolate an unknown `X` source before MISR compaction) cleanly contains corruption at a measured cost of `-{r_82['fc_scan_out_pct'] - r_xm['fc_scan_out_pct']:.3f}%` scan-out fault coverage.",
+        f"3. **Internal Scan vs. Unwrapped Macro Outputs (`{r_8c['fc_scan_out_pct']:.3f}%` vs. `{r_1c['fc_all_po_pct']:.3f}%`)**: Pure internal scan FF observation detects `{scan_det:,} / {tot_faults:,}` faults (`{r_8c['fc_scan_out_pct']:.3f}%`). The `{gap_faults:,}`-fault (`{gap_pct:.2f}%`) gap originates cleanly in combinational cones feeding module outputs and black-box `sram_sync_sp` ports (`sram_wdata`, `sram_wtag0/1`, `alu_obs`) lacking shadow capture FFs at the macro boundary — quantifying why full-SoC closure requires IEEE 1500 / wrapper cells around memory/probe outputs.",
+        f"4. **LFSR PRPG vs. Hybrid Top-Off**: The 2:8 LFSR+XOR phase-shifter matches unconstrained PRPG (`{curve_rows[-1]['lfsr28_all_pct']:.3f}%` vs. `{curve_rows[-1]['prpg_all_pct']:.3f}%` at 4,096 vectors) with rapid saturation above 512 vectors; topping up 512 2:8 LFSR vectors (`2` SI pins) with **`{atpg_info['hybrid_topoff_pats']:,}`** 8-chain deterministic top-off vectors restores the full **`{r_hy['fc_all_po_pct']:.3f}%`** stuck-at ceiling in `{r_hy['pattern_count']:,}` total vectors (`{r_hy['ate_data_comp_ratio']:.2f}x` ATE scan-in volume reduction vs. 1-chain deterministic).",
+        f"5. **X-Masking Coverage Penalty**: Asserting `chain_x_mask = 8'h08` (masking Chain 3's {ch3_len} FFs to isolate an unknown `X` source before MISR compaction) cleanly contains corruption at a measured cost of `-{r_82['fc_scan_out_pct'] - r_xm['fc_scan_out_pct']:.3f}%` scan-out fault coverage.",
         "",
         "## 5. Visualization",
         "",
@@ -570,6 +579,7 @@ def main() -> None:
     # Deterministic pattern grading
     det_nc_all, tot_f, _ = ckt.grade_patterns(nocomp_pats, faults=all_faults)
     det_c_all, _, _ = ckt.grade_patterns(comp_pats, faults=all_faults)
+    atpg_info["total_faults"] = tot_f
     atpg_info["redundant_faults"] = tot_f - det_c_all
     det_c_scan, _, _ = ckt.grade_patterns(comp_pats, faults=all_faults, compacted_po_groups=scan_uncomp_groups)
     det_c_4to1, _, _ = ckt.grade_patterns(comp_pats, faults=all_faults, compacted_po_groups=xor_4to1_groups)
